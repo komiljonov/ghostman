@@ -30,8 +30,14 @@ import (
 	"github.com/komiljonov/ghostman/internal/db"
 )
 
-// shutdownTimeout is how long in-flight requests get to finish after a signal.
-const shutdownTimeout = 15 * time.Second
+const (
+	// shutdownTimeout is how long in-flight requests get to finish after a
+	// signal.
+	shutdownTimeout = 15 * time.Second
+
+	// sessionCleanupInterval is how often expired sessions are swept.
+	sessionCleanupInterval = time.Hour
+)
 
 func main() {
 	migrateCmd := flag.String("migrate", "", "run a migration command instead of the server: up, down, status or create")
@@ -81,7 +87,27 @@ func run(migrateCmd, migrationName string) error {
 		if err := db.MigrateUp(ctx, pool, logger); err != nil {
 			return err
 		}
-		return serve(ctx, cfg, logger, pool)
+
+		queries := db.New(pool)
+
+		// Expired-session housekeeping runs alongside the server. Its context
+		// is cancelled once serve returns, whether that was a signal or a
+		// startup failure, and the goroutine is waited for before the pool
+		// closes.
+		cleanupCtx, stopCleanup := context.WithCancel(ctx)
+		cleanupDone := make(chan struct{})
+
+		go func() {
+			defer close(cleanupDone)
+			db.RunSessionCleanup(cleanupCtx, queries, logger, sessionCleanupInterval)
+		}()
+
+		defer func() {
+			stopCleanup()
+			<-cleanupDone
+		}()
+
+		return serve(ctx, cfg, logger, pool, queries)
 
 	case "up":
 		return db.MigrateUp(ctx, pool, logger)
@@ -98,8 +124,8 @@ func run(migrateCmd, migrationName string) error {
 }
 
 // serve runs the HTTP server until ctx is cancelled, then drains connections.
-func serve(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) error {
-	srv := api.NewServer(cfg, logger, pool)
+func serve(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store api.Store) error {
+	srv := api.NewServer(cfg, logger, pool, store)
 
 	// ListenAndServe blocks, so it runs in its own goroutine and reports a
 	// startup failure back through this channel.

@@ -64,16 +64,43 @@ alias for `Invoke-WebRequest`, which takes different flags.
 
 ## Endpoints
 
-| Method | Path             | Description                                 |
-| ------ | ---------------- | ------------------------------------------- |
-| GET    | `/healthz`       | Liveness plus a database ping. Returns `503` with an error envelope when the database is unreachable. |
-| GET    | `/api/v1/hello`  | Placeholder endpoint.                       |
+| Method | Path                     | Auth   | Description                          |
+| ------ | ------------------------ | ------ | ------------------------------------ |
+| GET    | `/healthz`               | public | Liveness plus a database ping. Returns `503` with an error envelope when the database is unreachable. |
+| GET    | `/api/v1/hello`          | public | Placeholder endpoint.                |
+| POST   | `/api/v1/auth/register`  | public | `{email, password, name}` → `201` with `{user, token}`. `409` if the email is taken, `400` on validation failure. |
+| POST   | `/api/v1/auth/login`     | public | `{email, password}` → `200` with `{user, token}`, `401` otherwise. |
+| POST   | `/api/v1/auth/logout`    | bearer | Deletes the session behind the current token. `204`. |
+| GET    | `/api/v1/me`             | bearer | The authenticated user: `{id, email, name}`. |
 
 Errors always use a single envelope:
 
 ```json
 { "error": { "code": "not_found", "message": "the requested resource was not found" } }
 ```
+
+Codes in use: `bad_request`, `unauthorized`, `not_found`, `conflict`,
+`internal_error`, `service_unavailable`.
+
+## Authentication
+
+Authenticated requests carry the session token as a bearer token:
+
+```sh
+curl http://localhost:8080/api/v1/me -H "Authorization: Bearer $TOKEN"
+```
+
+- **Passwords** are hashed with argon2id (`m=64MiB, t=1, p=4`, 16-byte salt,
+  32-byte key) and stored in the standard `$argon2id$v=19$...` encoding.
+  Verification reads the cost parameters from the stored string, so they can be
+  raised later without invalidating existing passwords.
+- **Session tokens** are 32 random bytes, base64url-encoded, and shown to the
+  client exactly once. The database stores only their SHA-256, so a leaked dump
+  yields no usable tokens. Sessions last 30 days.
+- **Login** answers an unknown email and a wrong password identically, in both
+  message and timing.
+- A background sweep deletes expired sessions every hour. Expiry itself is
+  enforced by the session query, not by the sweep.
 
 ## Tasks
 
@@ -99,7 +126,8 @@ needed on any platform.
 
 ```
 cmd/server/            entrypoint: config, logger, pool, migrations, HTTP server, shutdown
-internal/api/          HTTP server, routes, middleware, JSON helpers
+internal/api/          HTTP server, routes, middleware, auth handlers, JSON helpers
+internal/auth/         argon2id password hashing and session tokens (no HTTP, no SQL)
 internal/config/       Config struct and Load()
 internal/db/           pgxpool setup, goose runner, sqlc output (db.go, models.go, *.sql.go)
 internal/db/migrations goose SQL migrations (embedded)
@@ -155,6 +183,10 @@ full documented list.
 
 ## Not implemented yet
 
-Authentication, users, collections and every other product table. CORS is
-currently wide open (`Access-Control-Allow-Origin: *`) and must be tightened
-before the server is exposed publicly.
+Collections, sync and every other product table. Auth covers only registration,
+login, logout and `/me`: there is no password reset, email verification, session
+listing or refresh yet.
+
+CORS is currently wide open (`Access-Control-Allow-Origin: *`) and there is no
+rate limiting on the login endpoint; both must be addressed before the server is
+exposed publicly.

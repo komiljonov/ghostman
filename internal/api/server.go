@@ -21,16 +21,18 @@ const (
 	maxHeaderBytes    = 1 << 20 // 1 MiB
 )
 
-// api carries the dependencies shared by all handlers.
+// api carries the dependencies shared by all handlers. The pool is kept
+// separately from the store because /healthz pings the connection itself.
 type api struct {
 	logger *slog.Logger
 	pool   *pgxpool.Pool
+	store  Store
 }
 
 // NewServer builds a fully configured *http.Server. The caller owns its
 // lifecycle (ListenAndServe and Shutdown).
-func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) *http.Server {
-	a := &api{logger: logger, pool: pool}
+func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store Store) *http.Server {
+	a := &api{logger: logger, pool: pool, store: store}
 
 	return &http.Server{
 		Addr:              cfg.Addr(),
