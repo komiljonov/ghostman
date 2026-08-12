@@ -23,6 +23,20 @@ type Session struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+type Team struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	OwnerID   uuid.UUID `json:"owner_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type TeamMember struct {
+	TeamID      uuid.UUID `json:"team_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	AllProjects bool      `json:"all_projects"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type User struct {
 	ID           uuid.UUID `json:"id"`
 	Email        string    `json:"email"`

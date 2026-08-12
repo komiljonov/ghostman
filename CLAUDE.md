@@ -15,4 +15,16 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - Handlers: plain http.HandlerFunc + shared writeJSON/readJSON helpers, consistent error envelope
 - All SQL lives in internal/db/queries/*.sql, regenerated with `task sqlc`
 - Must run on Windows and Linux identically — no bash-only tooling in the critical path
-- Domain model (users/collections/sync) is NOT designed yet — do not invent product tables without discussion
+- Permission checks live in internal/authz — handlers call the helpers, never inline a permission query
+
+## API conventions
+- Flat URL paths only: every resource gets its own top-level path (/teams, /projects, ...).
+  Never nest resources in paths — no /teams/{id}/projects.
+- Relations are expressed with query params: GET /projects?team=<team-id>
+- Sub-collections that belong to exactly one parent may be embedded in that parent's
+  detail response (e.g. GET /teams/{id} includes its members)
+
+## Domain model
+Designed so far: users + sessions (step 1), teams + team_members (step 2).
+Everything else (projects, collections, sync) is NOT designed yet — do not invent
+product tables without discussion.

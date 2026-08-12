@@ -72,6 +72,11 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/auth/login`     | public | `{email, password}` → `200` with `{user, token}`, `401` otherwise. |
 | POST   | `/api/v1/auth/logout`    | bearer | Deletes the session behind the current token. `204`. |
 | GET    | `/api/v1/me`             | bearer | The authenticated user: `{id, email, name}`. |
+| POST   | `/api/v1/teams`          | bearer | `{name}` → `201` with `{id, name}`. Creates the team and the caller's membership in one transaction. |
+| GET    | `/api/v1/teams`          | bearer | The caller's teams: `[{id, name, member_count, is_owner}]`. |
+| GET    | `/api/v1/teams/{id}`     | bearer | Members only. `{id, name, created_at, is_owner, members[]}`. |
+| PATCH  | `/api/v1/teams/{id}`     | bearer | Owner only. `{name}` → `200` with the team detail. |
+| DELETE | `/api/v1/teams/{id}`     | bearer | Owner only. `204`; memberships cascade.  |
 
 Errors always use a single envelope:
 
@@ -79,8 +84,14 @@ Errors always use a single envelope:
 { "error": { "code": "not_found", "message": "the requested resource was not found" } }
 ```
 
-Codes in use: `bad_request`, `unauthorized`, `not_found`, `conflict`,
-`internal_error`, `service_unavailable`.
+Codes in use: `bad_request`, `unauthorized`, `forbidden`, `not_found`,
+`conflict`, `internal_error`, `service_unavailable`.
+
+URL paths are flat: every resource sits at its own top-level path and relations
+are expressed with query parameters (`GET /projects?team=<id>`), never by
+nesting paths. A sub-collection owned by exactly one parent may be embedded in
+the parent's detail response, which is why members arrive inside
+`GET /teams/{id}` rather than at `/teams/{id}/members`.
 
 ## Authentication
 
@@ -101,6 +112,35 @@ curl http://localhost:8080/api/v1/me -H "Authorization: Bearer $TOKEN"
   message and timing.
 - A background sweep deletes expired sessions every hour. Expiry itself is
   enforced by the session query, not by the sweep.
+
+## Teams
+
+A team has exactly one owner (`teams.owner_id`) and a set of members
+(`team_members`). There is no role column: the owner also holds a membership
+row, so member lookups never special-case them.
+
+Permission checks live in `internal/authz` and handlers call them rather than
+querying permissions inline:
+
+- `RequireTeamMember` → `ErrNotMember`, which handlers answer with **404**. A
+  non-member must not be able to tell an existing team from a missing one.
+- `RequireTeamOwner` → `ErrNotOwner` for a member who is not the owner, which
+  handlers answer with **403**, since a member already knows the team exists.
+
+Invitations, member management and roles do not exist yet, so the only way to
+gain a second member today is to insert a `team_members` row directly.
+
+## Testing
+
+`task test` runs everything. Tests that need real SQL behaviour (transactions,
+cascades, constraints) create their own database next to the configured one —
+`ghostman_test_api` for `internal/api` — apply the embedded migrations and
+truncate between tests, so they never touch the development data.
+
+They read `DATABASE_URL`, which `task test` loads from `.env`. A bare
+`go test ./...` has no environment and **skips** them; use `task test`, or set
+`DATABASE_URL` yourself. When no database answers at all, they skip with a
+message rather than failing, so the suite still runs without Docker.
 
 ## Tasks
 
@@ -126,12 +166,14 @@ needed on any platform.
 
 ```
 cmd/server/            entrypoint: config, logger, pool, migrations, HTTP server, shutdown
-internal/api/          HTTP server, routes, middleware, auth handlers, JSON helpers
+internal/api/          HTTP server, routes, middleware, handlers, JSON helpers
 internal/auth/         argon2id password hashing and session tokens (no HTTP, no SQL)
+internal/authz/        permission checks (team membership and ownership)
 internal/config/       Config struct and Load()
-internal/db/           pgxpool setup, goose runner, sqlc output (db.go, models.go, *.sql.go)
+internal/db/           pgxpool setup, goose runner, transactional Store, sqlc output
 internal/db/migrations goose SQL migrations (embedded)
 internal/db/queries/   sqlc query definitions
+internal/testdb/       throwaway test databases for database-backed tests
 ```
 
 ## Database workflow
@@ -183,9 +225,11 @@ full documented list.
 
 ## Not implemented yet
 
-Collections, sync and every other product table. Auth covers only registration,
-login, logout and `/me`: there is no password reset, email verification, session
-listing or refresh yet.
+Projects, collections, sync and every other product table. Auth covers only
+registration, login, logout and `/me`: there is no password reset, email
+verification, session listing or refresh yet. Teams are CRUD only: no
+invitations, no member management, no roles, and no ownership transfer (a user
+who still owns a team cannot be deleted).
 
 CORS is currently wide open (`Access-Control-Allow-Origin: *`) and there is no
 rate limiting on the login endpoint; both must be addressed before the server is

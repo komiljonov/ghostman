@@ -8,10 +8,16 @@ import (
 	"github.com/komiljonov/ghostman/internal/db"
 )
 
-// Store is the slice of the sqlc-generated query API that the HTTP layer uses.
-// Declaring it here (rather than passing *db.Queries around) keeps handler
-// tests runnable without a database.
+// Store is the slice of the database API that the HTTP layer uses. Declaring it
+// here (rather than passing *db.Store around) keeps handler tests runnable
+// without a database.
 type Store interface {
+	AuthStore
+	TeamStore
+}
+
+// AuthStore covers registration, login and session lookup.
+type AuthStore interface {
 	CreateUser(ctx context.Context, arg db.CreateUserParams) (db.User, error)
 	GetUserByEmail(ctx context.Context, email string) (db.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error)
@@ -21,5 +27,18 @@ type Store interface {
 	DeleteSession(ctx context.Context, tokenHash []byte) error
 }
 
-// The generated queries must satisfy Store.
-var _ Store = (*db.Queries)(nil)
+// TeamStore covers team CRUD. CreateTeamWithOwner is transactional, which is
+// why this interface is satisfied by *db.Store and not by *db.Queries.
+type TeamStore interface {
+	CreateTeamWithOwner(ctx context.Context, name string, ownerID uuid.UUID) (db.Team, error)
+	GetTeamByID(ctx context.Context, id uuid.UUID) (db.Team, error)
+	UpdateTeamName(ctx context.Context, arg db.UpdateTeamNameParams) (db.Team, error)
+	DeleteTeam(ctx context.Context, id uuid.UUID) error
+
+	GetTeamMember(ctx context.Context, arg db.GetTeamMemberParams) (db.TeamMember, error)
+	ListTeamsForUser(ctx context.Context, userID uuid.UUID) ([]db.ListTeamsForUserRow, error)
+	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]db.ListTeamMembersRow, error)
+}
+
+// The real store must satisfy Store.
+var _ Store = (*db.Store)(nil)
