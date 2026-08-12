@@ -77,6 +77,13 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | GET    | `/api/v1/teams/{id}`     | bearer | Members only. `{id, name, created_at, is_owner, members[]}`. |
 | PATCH  | `/api/v1/teams/{id}`     | bearer | Owner only. `{name}` → `200` with the team detail. |
 | DELETE | `/api/v1/teams/{id}`     | bearer | Owner only. `204`; memberships cascade.  |
+| POST   | `/api/v1/teams/{team_id}/invitations` | bearer | Owner only. `{email}` → `201`. `409` if that email is already a member, is your own, or already has a pending invitation. |
+| GET    | `/api/v1/teams/{team_id}/invitations` | bearer | Owner only. The team's pending invitations. |
+| DELETE | `/api/v1/teams/{team_id}/members/{user_id}` | bearer | Remove a member (owner) or leave (yourself). `204`. |
+| GET    | `/api/v1/me/invitations` | bearer | Pending invitations addressed to your email, with team and inviter. |
+| POST   | `/api/v1/invitations/{id}/accept` | bearer | Invitee only. Joins the team. `200`. |
+| POST   | `/api/v1/invitations/{id}/reject` | bearer | Invitee only. `200`. |
+| DELETE | `/api/v1/invitations/{id}` | bearer | Owner only, while pending. `204`. |
 
 Errors always use a single envelope:
 
@@ -87,11 +94,14 @@ Errors always use a single envelope:
 Codes in use: `bad_request`, `unauthorized`, `forbidden`, `not_found`,
 `conflict`, `internal_error`, `service_unavailable`.
 
-URL paths are flat: every resource sits at its own top-level path and relations
-are expressed with query parameters (`GET /projects?team=<id>`), never by
-nesting paths. A sub-collection owned by exactly one parent may be embedded in
-the parent's detail response, which is why members arrive inside
-`GET /teams/{id}` rather than at `/teams/{id}/members`.
+URL shape, never nested more than one level deep:
+
+- a collection hangs off its parent: `POST /teams/{id}/invitations`
+- an individual resource is flat and never repeats the parent id:
+  `DELETE /invitations/{id}`
+- a state change is a verb sub-path on the flat resource:
+  `POST /invitations/{id}/accept`
+- `/me/...` addresses the current user's own collections: `GET /me/invitations`
 
 ## Authentication
 
@@ -127,8 +137,25 @@ querying permissions inline:
 - `RequireTeamOwner` → `ErrNotOwner` for a member who is not the owner, which
   handlers answer with **403**, since a member already knows the team exists.
 
-Invitations, member management and roles do not exist yet, so the only way to
-gain a second member today is to insert a `team_members` row directly.
+### Invitations
+
+Invitations are addressed to an **email**, not a user, so inviting somebody who
+has not registered yet is valid: the invitation waits for them and shows up in
+`GET /me/invitations` the moment they sign up with that address.
+
+- A partial unique index on `(team_id, email) WHERE status = 'pending'` allows
+  exactly one live invitation per address per team, while leaving answered ones
+  in place as history. Re-inviting after a rejection or a departure just works.
+- Accepting is one transaction: the invitation is marked accepted **and** the
+  membership row is written. The update is guarded on `status = 'pending'`, so a
+  second concurrent accept touches no row and comes back as `409`.
+- An invitation addressed to someone else answers `404`, not `403` — the caller
+  must not learn it exists. The same goes for revoking one as a non-owner.
+
+Removal and leaving are the same endpoint under different permissions: the owner
+may remove any member, and a member may remove themselves. The owner cannot
+leave (`400`), because a team must always have an owner and ownership transfer
+does not exist yet.
 
 ## Testing
 
@@ -227,9 +254,12 @@ full documented list.
 
 Projects, collections, sync and every other product table. Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
-verification, session listing or refresh yet. Teams are CRUD only: no
-invitations, no member management, no roles, and no ownership transfer (a user
-who still owns a team cannot be deleted).
+verification, session listing or refresh yet.
+
+Teams have invitations and membership removal, but no roles or per-member
+permissions, no ownership transfer (so a user who still owns a team cannot be
+deleted), and **no email delivery**: an invitation exists only as a row, and the
+inviter has to tell the invitee out of band. Invitations do not expire.
 
 CORS is currently wide open (`Access-Control-Allow-Origin: *`) and there is no
 rate limiting on the login endpoint; both must be addressed before the server is

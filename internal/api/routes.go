@@ -24,11 +24,23 @@ func (a *api) routes() http.Handler {
 	mux.Handle("POST /api/v1/auth/logout", a.requireAuth(http.HandlerFunc(a.handleLogout)))
 	mux.Handle("GET /api/v1/me", a.requireAuth(http.HandlerFunc(a.handleMe)))
 
+	mux.Handle("GET /api/v1/me/invitations", a.requireAuth(http.HandlerFunc(a.handleListMyInvitations)))
+
 	mux.Handle("POST /api/v1/teams", a.requireAuth(http.HandlerFunc(a.handleCreateTeam)))
 	mux.Handle("GET /api/v1/teams", a.requireAuth(http.HandlerFunc(a.handleListTeams)))
 	mux.Handle("GET /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleGetTeam)))
 	mux.Handle("PATCH /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateTeam)))
 	mux.Handle("DELETE /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteTeam)))
+
+	// Collections hang off their parent, one level deep; the individual
+	// resources they contain live at a flat path.
+	mux.Handle("POST /api/v1/teams/{team_id}/invitations", a.requireAuth(http.HandlerFunc(a.handleCreateInvitation)))
+	mux.Handle("GET /api/v1/teams/{team_id}/invitations", a.requireAuth(http.HandlerFunc(a.handleListTeamInvitations)))
+	mux.Handle("DELETE /api/v1/teams/{team_id}/members/{user_id}", a.requireAuth(http.HandlerFunc(a.handleDeleteTeamMember)))
+
+	mux.Handle("POST /api/v1/invitations/{id}/accept", a.requireAuth(http.HandlerFunc(a.handleAcceptInvitation)))
+	mux.Handle("POST /api/v1/invitations/{id}/reject", a.requireAuth(http.HandlerFunc(a.handleRejectInvitation)))
+	mux.Handle("DELETE /api/v1/invitations/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteInvitation)))
 
 	// Catch-all so unknown paths get the JSON error envelope instead of
 	// ServeMux's plain-text 404.

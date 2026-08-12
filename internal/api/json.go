@@ -47,6 +47,17 @@ const (
 	messageTeamNotFound = "team not found"
 	messageNotTeamOwner = "only the team owner can do that"
 
+	// messageInvitationNotFound covers a missing invitation, one addressed to
+	// somebody else, and one belonging to a team the caller does not own.
+	messageInvitationNotFound = "invitation not found"
+	messageInvitationAnswered = "this invitation has already been answered"
+	messageInvitationPending  = "an invitation for that email is already pending"
+	messageAlreadyMember      = "that email is already a member of this team"
+	messageCannotInviteSelf   = "you cannot invite yourself"
+
+	messageMemberNotFound    = "team member not found"
+	messageCannotRemoveOwner = "the team owner cannot be removed; transfer ownership first"
+
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"
 

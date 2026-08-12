@@ -58,6 +58,24 @@ func (q *Queries) CreateTeamMember(ctx context.Context, arg CreateTeamMemberPara
 	return i, err
 }
 
+const createTeamMemberIfAbsent = `-- name: CreateTeamMemberIfAbsent :exec
+INSERT INTO team_members (team_id, user_id, all_projects)
+VALUES ($1, $2, true)
+ON CONFLICT (team_id, user_id) DO NOTHING
+`
+
+type CreateTeamMemberIfAbsentParams struct {
+	TeamID uuid.UUID `json:"team_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// Used when accepting an invitation: an already-present membership must not
+// turn the acceptance into an error.
+func (q *Queries) CreateTeamMemberIfAbsent(ctx context.Context, arg CreateTeamMemberIfAbsentParams) error {
+	_, err := q.db.Exec(ctx, createTeamMemberIfAbsent, arg.TeamID, arg.UserID)
+	return err
+}
+
 const deleteTeam = `-- name: DeleteTeam :exec
 DELETE FROM teams
 WHERE id = $1
@@ -67,6 +85,27 @@ WHERE id = $1
 func (q *Queries) DeleteTeam(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteTeam, id)
 	return err
+}
+
+const deleteTeamMember = `-- name: DeleteTeamMember :execrows
+DELETE FROM team_members
+WHERE team_id = $1
+  AND user_id = $2
+`
+
+type DeleteTeamMemberParams struct {
+	TeamID uuid.UUID `json:"team_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// Returns the number of rows removed so callers can tell "removed" from
+// "was never a member".
+func (q *Queries) DeleteTeamMember(ctx context.Context, arg DeleteTeamMemberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTeamMember, arg.TeamID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getTeamByID = `-- name: GetTeamByID :one
