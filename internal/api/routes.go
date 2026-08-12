@@ -14,8 +14,15 @@ const healthPingTimeout = 2 * time.Second
 func (a *api) routes() http.Handler {
 	mux := http.NewServeMux()
 
+	// Public.
 	mux.HandleFunc("GET /healthz", a.handleHealthz)
 	mux.HandleFunc("GET /api/v1/hello", a.handleHello)
+	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
+	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
+
+	// Authenticated.
+	mux.Handle("POST /api/v1/auth/logout", a.requireAuth(http.HandlerFunc(a.handleLogout)))
+	mux.Handle("GET /api/v1/me", a.requireAuth(http.HandlerFunc(a.handleMe)))
 
 	// Catch-all so unknown paths get the JSON error envelope instead of
 	// ServeMux's plain-text 404.

@@ -29,11 +29,24 @@ type errorBody struct {
 // inventing strings at the call site.
 const (
 	codeBadRequest   = "bad_request"
+	codeUnauthorized = "unauthorized"
 	codeNotFound     = "not_found"
+	codeConflict     = "conflict"
 	codeInternal     = "internal_error"
 	codeUnavailable  = "service_unavailable"
+
 	messageInternal  = "the server encountered an unexpected problem"
 	messageDBUnready = "database is not reachable"
+
+	messageAuthRequired = "authentication required"
+	messageEmailTaken   = "an account with that email already exists"
+
+	//nolint:gosec // G101: a message shown to clients, not a credential.
+	messageInvalidToken = "invalid or expired token"
+
+	// messageBadCredentials is returned for both an unknown email and a wrong
+	// password, so responses never reveal whether an account exists.
+	messageBadCredentials = "invalid email or password"
 )
 
 // writeJSON serialises v as JSON with the given status code. A failure to
