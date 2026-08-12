@@ -20,9 +20,15 @@ func (a *api) routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
 
-	// Authenticated.
+	// Authenticated. Paths stay flat: no resource is nested under another.
 	mux.Handle("POST /api/v1/auth/logout", a.requireAuth(http.HandlerFunc(a.handleLogout)))
 	mux.Handle("GET /api/v1/me", a.requireAuth(http.HandlerFunc(a.handleMe)))
+
+	mux.Handle("POST /api/v1/teams", a.requireAuth(http.HandlerFunc(a.handleCreateTeam)))
+	mux.Handle("GET /api/v1/teams", a.requireAuth(http.HandlerFunc(a.handleListTeams)))
+	mux.Handle("GET /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleGetTeam)))
+	mux.Handle("PATCH /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateTeam)))
+	mux.Handle("DELETE /api/v1/teams/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteTeam)))
 
 	// Catch-all so unknown paths get the JSON error envelope instead of
 	// ServeMux's plain-text 404.

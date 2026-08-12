@@ -30,6 +30,7 @@ type errorBody struct {
 const (
 	codeBadRequest   = "bad_request"
 	codeUnauthorized = "unauthorized"
+	codeForbidden    = "forbidden"
 	codeNotFound     = "not_found"
 	codeConflict     = "conflict"
 	codeInternal     = "internal_error"
@@ -40,6 +41,11 @@ const (
 
 	messageAuthRequired = "authentication required"
 	messageEmailTaken   = "an account with that email already exists"
+
+	// messageTeamNotFound is also what a non-member sees, so that team
+	// existence is not observable from outside the team.
+	messageTeamNotFound = "team not found"
+	messageNotTeamOwner = "only the team owner can do that"
 
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"

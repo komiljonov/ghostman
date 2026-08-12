@@ -88,7 +88,7 @@ func run(migrateCmd, migrationName string) error {
 			return err
 		}
 
-		queries := db.New(pool)
+		store := db.NewStore(pool)
 
 		// Expired-session housekeeping runs alongside the server. Its context
 		// is cancelled once serve returns, whether that was a signal or a
@@ -99,7 +99,7 @@ func run(migrateCmd, migrationName string) error {
 
 		go func() {
 			defer close(cleanupDone)
-			db.RunSessionCleanup(cleanupCtx, queries, logger, sessionCleanupInterval)
+			db.RunSessionCleanup(cleanupCtx, store.Queries, logger, sessionCleanupInterval)
 		}()
 
 		defer func() {
@@ -107,7 +107,7 @@ func run(migrateCmd, migrationName string) error {
 			<-cleanupDone
 		}()
 
-		return serve(ctx, cfg, logger, pool, queries)
+		return serve(ctx, cfg, logger, pool, store)
 
 	case "up":
 		return db.MigrateUp(ctx, pool, logger)

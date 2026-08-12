@@ -25,6 +25,8 @@ import (
 // handler tests run against this instead; the SQL itself is covered by the
 // manual end-to-end checks documented in the README.
 type fakeStore struct {
+	unimplementedTeamStore
+
 	mu           sync.Mutex
 	usersByEmail map[string]db.User
 	usersByID    map[uuid.UUID]db.User

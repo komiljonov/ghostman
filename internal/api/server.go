@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/komiljonov/ghostman/internal/authz"
 	"github.com/komiljonov/ghostman/internal/config"
 )
 
@@ -27,12 +28,18 @@ type api struct {
 	logger *slog.Logger
 	pool   *pgxpool.Pool
 	store  Store
+	authz  *authz.Checker
 }
 
 // NewServer builds a fully configured *http.Server. The caller owns its
 // lifecycle (ListenAndServe and Shutdown).
 func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store Store) *http.Server {
-	a := &api{logger: logger, pool: pool, store: store}
+	a := &api{
+		logger: logger,
+		pool:   pool,
+		store:  store,
+		authz:  authz.New(store),
+	}
 
 	return &http.Server{
 		Addr:              cfg.Addr(),
