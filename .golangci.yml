@@ -1,0 +1,60 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  # "standard" = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    - bodyclose      # HTTP response bodies must be closed
+    - errorlint      # correct error wrapping and comparison
+    - gocritic       # opinionated correctness/style checks
+    - gosec          # common security mistakes
+    - misspell       # typos in comments and strings
+    - noctx          # HTTP requests without a context
+    - nolintlint     # //nolint directives must be specific and explained
+    - revive         # golint successor
+    - rowserrcheck   # sql.Rows.Err must be checked
+    - sqlclosecheck  # sql.Rows/Stmt must be closed
+    - unconvert      # redundant type conversions
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable:
+        - shadow
+    revive:
+      rules:
+        - name: exported
+          disabled: true  # scaffold packages are internal; revisit if we publish
+        - name: unused-parameter
+          disabled: true  # http.Handler signatures often ignore a parameter
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    gosec:
+      excludes:
+        - G104  # duplicate of errcheck
+
+  exclusions:
+    generated: lax  # skip sqlc output, which is regenerated not edited
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - bodyclose
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/komiljonov/ghostman
