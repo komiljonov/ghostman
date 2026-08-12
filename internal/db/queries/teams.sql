@@ -24,9 +24,23 @@ INSERT INTO team_members (team_id, user_id, all_projects)
 VALUES ($1, $2, $3)
 RETURNING *;
 
+-- name: CreateTeamMemberIfAbsent :exec
+-- Used when accepting an invitation: an already-present membership must not
+-- turn the acceptance into an error.
+INSERT INTO team_members (team_id, user_id, all_projects)
+VALUES ($1, $2, true)
+ON CONFLICT (team_id, user_id) DO NOTHING;
+
 -- name: GetTeamMember :one
 SELECT *
 FROM team_members
+WHERE team_id = $1
+  AND user_id = $2;
+
+-- name: DeleteTeamMember :execrows
+-- Returns the number of rows removed so callers can tell "removed" from
+-- "was never a member".
+DELETE FROM team_members
 WHERE team_id = $1
   AND user_id = $2;
 

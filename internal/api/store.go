@@ -14,6 +14,7 @@ import (
 type Store interface {
 	AuthStore
 	TeamStore
+	InvitationStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -38,6 +39,21 @@ type TeamStore interface {
 	GetTeamMember(ctx context.Context, arg db.GetTeamMemberParams) (db.TeamMember, error)
 	ListTeamsForUser(ctx context.Context, userID uuid.UUID) ([]db.ListTeamsForUserRow, error)
 	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]db.ListTeamMembersRow, error)
+	DeleteTeamMember(ctx context.Context, arg db.DeleteTeamMemberParams) (int64, error)
+}
+
+// InvitationStore covers invitations and joining a team through one.
+// AcceptInvitation is transactional, for the same reason CreateTeamWithOwner is.
+type InvitationStore interface {
+	CreateInvitation(ctx context.Context, arg db.CreateInvitationParams) (db.TeamInvitation, error)
+	GetInvitationByID(ctx context.Context, id uuid.UUID) (db.TeamInvitation, error)
+	ListPendingInvitationsForEmail(ctx context.Context, email string) ([]db.ListPendingInvitationsForEmailRow, error)
+	ListPendingInvitationsForTeam(ctx context.Context, teamID uuid.UUID) ([]db.ListPendingInvitationsForTeamRow, error)
+	UpdateInvitationStatus(ctx context.Context, arg db.UpdateInvitationStatusParams) (db.TeamInvitation, error)
+	DeleteInvitation(ctx context.Context, id uuid.UUID) error
+	IsEmailTeamMember(ctx context.Context, arg db.IsEmailTeamMemberParams) (bool, error)
+
+	AcceptInvitation(ctx context.Context, invitationID, userID uuid.UUID) (db.TeamInvitation, error)
 }
 
 // The real store must satisfy Store.

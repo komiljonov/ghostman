@@ -13,9 +13,10 @@ import (
 // trips one of these is using the wrong fixture, not exercising a real path.
 var errStubbed = errors.New("this store method is stubbed out; use the database-backed tests instead")
 
-// unimplementedTeamStore fills in the TeamStore half of Store for tests that
-// only exercise auth. Team behaviour is covered by the database-backed tests in
-// teams_test.go, where transactions and cascades are real.
+// unimplementedTeamStore fills in the non-auth half of Store for tests that
+// only exercise auth. Team and invitation behaviour is covered by the
+// database-backed tests, where transactions, cascades and partial unique
+// indexes are real.
 type unimplementedTeamStore struct{}
 
 func (unimplementedTeamStore) CreateTeamWithOwner(_ context.Context, _ string, _ uuid.UUID) (db.Team, error) {
@@ -44,4 +45,40 @@ func (unimplementedTeamStore) ListTeamsForUser(_ context.Context, _ uuid.UUID) (
 
 func (unimplementedTeamStore) ListTeamMembers(_ context.Context, _ uuid.UUID) ([]db.ListTeamMembersRow, error) {
 	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteTeamMember(_ context.Context, _ db.DeleteTeamMemberParams) (int64, error) {
+	return 0, errStubbed
+}
+
+func (unimplementedTeamStore) CreateInvitation(_ context.Context, _ db.CreateInvitationParams) (db.TeamInvitation, error) {
+	return db.TeamInvitation{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetInvitationByID(_ context.Context, _ uuid.UUID) (db.TeamInvitation, error) {
+	return db.TeamInvitation{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListPendingInvitationsForEmail(_ context.Context, _ string) ([]db.ListPendingInvitationsForEmailRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ListPendingInvitationsForTeam(_ context.Context, _ uuid.UUID) ([]db.ListPendingInvitationsForTeamRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateInvitationStatus(_ context.Context, _ db.UpdateInvitationStatusParams) (db.TeamInvitation, error) {
+	return db.TeamInvitation{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteInvitation(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) IsEmailTeamMember(_ context.Context, _ db.IsEmailTeamMemberParams) (bool, error) {
+	return false, errStubbed
+}
+
+func (unimplementedTeamStore) AcceptInvitation(_ context.Context, _, _ uuid.UUID) (db.TeamInvitation, error) {
+	return db.TeamInvitation{}, errStubbed
 }

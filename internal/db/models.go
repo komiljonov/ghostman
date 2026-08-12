@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AppMeta struct {
@@ -28,6 +29,16 @@ type Team struct {
 	Name      string    `json:"name"`
 	OwnerID   uuid.UUID `json:"owner_id"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type TeamInvitation struct {
+	ID          uuid.UUID          `json:"id"`
+	TeamID      uuid.UUID          `json:"team_id"`
+	Email       string             `json:"email"`
+	InvitedBy   uuid.UUID          `json:"invited_by"`
+	Status      string             `json:"status"`
+	CreatedAt   time.Time          `json:"created_at"`
+	RespondedAt pgtype.Timestamptz `json:"responded_at"`
 }
 
 type TeamMember struct {

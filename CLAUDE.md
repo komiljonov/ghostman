@@ -18,11 +18,11 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - Permission checks live in internal/authz — handlers call the helpers, never inline a permission query
 
 ## API conventions
-- Flat URL paths only: every resource gets its own top-level path (/teams, /projects, ...).
-  Never nest resources in paths — no /teams/{id}/projects.
-- Relations are expressed with query params: GET /projects?team=<team-id>
-- Sub-collections that belong to exactly one parent may be embedded in that parent's
-  detail response (e.g. GET /teams/{id} includes its members)
+- Collections live under their parent, one level deep: POST/GET /teams/{id}/invitations
+- Individual resources use flat paths: /invitations/{id} — never repeat the parent id
+- State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
+- /me/... is for collections addressed to the current user: GET /me/invitations
+- Never nest deeper than one level
 
 ## Domain model
 Designed so far: users + sessions (step 1), teams + team_members (step 2).
