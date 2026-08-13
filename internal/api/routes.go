@@ -42,6 +42,21 @@ func (a *api) routes() http.Handler {
 	mux.Handle("POST /api/v1/invitations/{id}/reject", a.requireAuth(http.HandlerFunc(a.handleRejectInvitation)))
 	mux.Handle("DELETE /api/v1/invitations/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteInvitation)))
 
+	mux.Handle("POST /api/v1/teams/{team_id}/projects", a.requireAuth(http.HandlerFunc(a.handleCreateProject)))
+	mux.Handle("GET /api/v1/teams/{team_id}/projects", a.requireAuth(http.HandlerFunc(a.handleListProjects)))
+	mux.Handle("PUT /api/v1/teams/{team_id}/projects/order", a.requireAuth(http.HandlerFunc(a.handleReorderProjects)))
+
+	mux.Handle("GET /api/v1/projects/{id}", a.requireAuth(http.HandlerFunc(a.handleGetProject)))
+	mux.Handle("PATCH /api/v1/projects/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateProject)))
+	mux.Handle("DELETE /api/v1/projects/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteProject)))
+	mux.Handle("GET /api/v1/projects/{id}/access", a.requireAuth(http.HandlerFunc(a.handleListProjectAccess)))
+	mux.Handle("PUT /api/v1/projects/{id}/access", a.requireAuth(http.HandlerFunc(a.handleSetProjectAccess)))
+
+	// Two levels deep, which the convention otherwise avoids: this configures
+	// one member's access across a whole team, so it belongs to neither the
+	// member nor any single project on its own.
+	mux.Handle("PUT /api/v1/teams/{team_id}/members/{user_id}/access", a.requireAuth(http.HandlerFunc(a.handleSetMemberAccess)))
+
 	// Catch-all so unknown paths get the JSON error envelope instead of
 	// ServeMux's plain-text 404.
 	mux.HandleFunc("/", a.handleNotFound)

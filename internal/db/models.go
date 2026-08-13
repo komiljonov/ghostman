@@ -17,6 +17,21 @@ type AppMeta struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Project struct {
+	ID        uuid.UUID `json:"id"`
+	TeamID    uuid.UUID `json:"team_id"`
+	Name      string    `json:"name"`
+	OwnerID   uuid.UUID `json:"owner_id"`
+	SortOrder int32     `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectAccess struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Session struct {
 	TokenHash []byte    `json:"token_hash"`
 	UserID    uuid.UUID `json:"user_id"`

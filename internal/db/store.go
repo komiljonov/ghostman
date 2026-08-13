@@ -57,6 +57,104 @@ func (s *Store) CreateTeamWithOwner(ctx context.Context, name string, ownerID uu
 	return team, nil
 }
 
+// ReplaceProjectAccess makes the explicit grant list for one project exactly
+// userIDs. Clearing and re-granting must be atomic: a reader between the two
+// statements would otherwise see a project with nobody granted.
+func (s *Store) ReplaceProjectAccess(ctx context.Context, projectID uuid.UUID, userIDs []uuid.UUID) error {
+	return s.inTx(ctx, func(qtx *Queries) error {
+		if err := qtx.DeleteAllProjectAccess(ctx, projectID); err != nil {
+			return fmt.Errorf("clear project access: %w", err)
+		}
+
+		if len(userIDs) == 0 {
+			return nil
+		}
+
+		if err := qtx.GrantProjectAccess(ctx, GrantProjectAccessParams{
+			ProjectID: projectID,
+			UserIds:   userIDs,
+		}); err != nil {
+			return fmt.Errorf("grant project access: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// SetMemberProjectAccess sets one member's access within a single team: the
+// all_projects flag and, when it is false, their explicit grant list.
+//
+// Turning all_projects on drops the explicit rows, because they would be
+// meaningless while the flag is set and stale if it were ever turned back off.
+func (s *Store) SetMemberProjectAccess(
+	ctx context.Context,
+	teamID, userID uuid.UUID,
+	allProjects bool,
+	projectIDs []uuid.UUID,
+) (TeamMember, error) {
+	var member TeamMember
+
+	err := s.inTx(ctx, func(qtx *Queries) error {
+		updated, err := qtx.UpdateMemberAllProjects(ctx, UpdateMemberAllProjectsParams{
+			TeamID:      teamID,
+			UserID:      userID,
+			AllProjects: allProjects,
+		})
+		if err != nil {
+			// pgx.ErrNoRows travels unwrapped: the target is not a member.
+			return err
+		}
+		member = updated
+
+		// Either way the old list goes: on for being redundant, off for being
+		// replaced.
+		if err := qtx.DeleteAllUserAccessInTeam(ctx, DeleteAllUserAccessInTeamParams{
+			UserID: userID,
+			TeamID: teamID,
+		}); err != nil {
+			return fmt.Errorf("clear member project access: %w", err)
+		}
+
+		if allProjects || len(projectIDs) == 0 {
+			return nil
+		}
+
+		if err := qtx.GrantUserProjectAccess(ctx, GrantUserProjectAccessParams{
+			UserID:     userID,
+			ProjectIds: projectIDs,
+		}); err != nil {
+			return fmt.Errorf("grant member project access: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return TeamMember{}, err
+	}
+
+	return member, nil
+}
+
+// inTx runs fn inside a transaction, rolling back unless it returns nil.
+func (s *Store) inTx(ctx context.Context, fn func(*Queries) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	// No-op once the transaction has been committed.
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := fn(s.WithTx(tx)); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // AcceptInvitation marks an invitation accepted and adds the invitee to the
 // team, atomically: an accepted invitation that did not produce a membership
 // would leave the invitee with no way back in.
