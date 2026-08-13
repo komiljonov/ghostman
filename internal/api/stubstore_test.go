@@ -82,3 +82,55 @@ func (unimplementedTeamStore) IsEmailTeamMember(_ context.Context, _ db.IsEmailT
 func (unimplementedTeamStore) AcceptInvitation(_ context.Context, _, _ uuid.UUID) (db.TeamInvitation, error) {
 	return db.TeamInvitation{}, errStubbed
 }
+
+func (unimplementedTeamStore) CreateProject(_ context.Context, _ db.CreateProjectParams) (db.Project, error) {
+	return db.Project{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetProjectForUser(_ context.Context, _ db.GetProjectForUserParams) (db.GetProjectForUserRow, error) {
+	return db.GetProjectForUserRow{}, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateProjectName(_ context.Context, _ db.UpdateProjectNameParams) (db.Project, error) {
+	return db.Project{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteProject(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) ListAccessibleProjects(_ context.Context, _ db.ListAccessibleProjectsParams) ([]db.ListAccessibleProjectsRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ListTeamProjectIDs(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) BulkUpdateProjectOrder(_ context.Context, _ db.BulkUpdateProjectOrderParams) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) CountProjectsInTeam(_ context.Context, _ db.CountProjectsInTeamParams) (int64, error) {
+	return 0, errStubbed
+}
+
+func (unimplementedTeamStore) CountTeamMembersInList(_ context.Context, _ db.CountTeamMembersInListParams) (int64, error) {
+	return 0, errStubbed
+}
+
+func (unimplementedTeamStore) ListProjectAccessUsers(_ context.Context, _ uuid.UUID) ([]db.ListProjectAccessUsersRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ListUserAccessibleProjectIDs(_ context.Context, _ db.ListUserAccessibleProjectIDsParams) ([]uuid.UUID, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ReplaceProjectAccess(_ context.Context, _ uuid.UUID, _ []uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) SetMemberProjectAccess(_ context.Context, _, _ uuid.UUID, _ bool, _ []uuid.UUID) (db.TeamMember, error) {
+	return db.TeamMember{}, errStubbed
+}

@@ -25,6 +25,13 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - Never nest deeper than one level
 
 ## Domain model
-Designed so far: users + sessions (step 1), teams + team_members (step 2).
-Everything else (projects, collections, sync) is NOT designed yet — do not invent
-product tables without discussion.
+Designed so far: users + sessions (step 1), teams + team_members (step 2),
+team_invitations (step 3), projects + project_access (step 4).
+Everything else (folders, requests, environments, sync) is NOT designed yet —
+do not invent product tables without discussion.
+
+## Project access rule
+A user can reach a project iff they are a member of its team AND one of:
+team_members.all_projects, teams.owner_id, projects.owner_id, or a project_access row.
+No access → 404, never 403: project existence must not leak.
+Managing a project (rename/delete/access) is team owner or project owner only → 403.

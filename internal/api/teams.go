@@ -280,6 +280,12 @@ func (a *api) writeAuthzError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.Is(err, authz.ErrNotOwner):
 		a.writeError(w, r, http.StatusForbidden, codeForbidden, messageNotTeamOwner)
 
+	case errors.Is(err, authz.ErrNoProjectAccess):
+		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageProjectNotFound)
+
+	case errors.Is(err, authz.ErrNotProjectManager):
+		a.writeError(w, r, http.StatusForbidden, codeForbidden, messageNotProjectOwner)
+
 	default:
 		a.serverError(w, r, err)
 	}

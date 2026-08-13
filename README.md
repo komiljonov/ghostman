@@ -84,6 +84,15 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/invitations/{id}/accept` | bearer | Invitee only. Joins the team. `200`. |
 | POST   | `/api/v1/invitations/{id}/reject` | bearer | Invitee only. `200`. |
 | DELETE | `/api/v1/invitations/{id}` | bearer | Owner only, while pending. `204`. |
+| POST   | `/api/v1/teams/{team_id}/projects` | bearer | Any member. `{name}` → `201`; the creator becomes the project's owner. |
+| GET    | `/api/v1/teams/{team_id}/projects` | bearer | The team's projects **that you can reach**, in `sort_order`. |
+| PUT    | `/api/v1/teams/{team_id}/projects/order` | bearer | Any member. `{project_ids}` must list every project in the team. `204`. |
+| GET    | `/api/v1/projects/{id}`  | bearer | Requires project access. |
+| PATCH  | `/api/v1/projects/{id}`  | bearer | Team owner or project owner. `{name}` → `200`. |
+| DELETE | `/api/v1/projects/{id}`  | bearer | Team owner or project owner. `204`; access rows cascade. |
+| GET    | `/api/v1/projects/{id}/access` | bearer | Team owner or project owner. The explicit grant list. |
+| PUT    | `/api/v1/projects/{id}/access` | bearer | Team owner or project owner. `{user_ids}` replaces the grant list. |
+| PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
 
 Errors always use a single envelope:
 
@@ -156,6 +165,42 @@ Removal and leaving are the same endpoint under different permissions: the owner
 may remove any member, and a member may remove themselves. The owner cannot
 leave (`400`), because a team must always have an owner and ownership transfer
 does not exist yet.
+
+## Projects
+
+Projects belong to a team and are ordered by a team-wide `sort_order`. Any
+member can create one and becomes its owner.
+
+**Who can reach a project.** A user can open a project if they are a member of
+its team **and** any one of:
+
+- their `team_members.all_projects` flag is set (the default for new members);
+- they own the team;
+- they own the project;
+- they hold an explicit `project_access` row for it.
+
+The whole rule is one SQL query, applied both to a single project and to the
+team's project list, so a list never shows something a direct fetch would
+refuse. No access is answered with **404** rather than 403 — a project a user
+cannot reach must not be distinguishable from one that does not exist.
+
+**Who can change it.** Renaming, deleting and editing the access list require
+the team's owner or the project's owner. Someone who can see the project but is
+neither gets **403**: they already know it exists.
+
+Access is configured from either direction, writing the same `project_access`
+rows:
+
+- `PUT /projects/{id}/access` — "who may open this project", available to
+  whoever manages the project.
+- `PUT /teams/{team_id}/members/{user_id}/access` — "what may this person
+  open", available to the team owner only, since it spans the whole team.
+  Setting `all_projects: true` clears their explicit rows, as those would be
+  redundant while the flag is on.
+
+Explicit grants only matter for members whose `all_projects` is false; they are
+stored regardless, so turning the flag off restores a previously configured
+list.
 
 ## Testing
 
@@ -257,9 +302,15 @@ registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.
 
 Teams have invitations and membership removal, but no roles or per-member
-permissions, no ownership transfer (so a user who still owns a team cannot be
-deleted), and **no email delivery**: an invitation exists only as a row, and the
-inviter has to tell the invitee out of band. Invitations do not expire.
+permissions beyond project access, no ownership transfer (so a user who still
+owns a team cannot be deleted), and **no email delivery**: an invitation exists
+only as a row, and the inviter has to tell the invitee out of band. Invitations
+do not expire.
+
+Projects hold nothing yet — no folders, requests or environments — and cannot be
+duplicated or moved between teams. Moving a project is deferred deliberately:
+its access rows point at users who may not be in the destination team, and that
+question is unresolved.
 
 CORS is currently wide open (`Access-Control-Allow-Origin: *`) and there is no
 rate limiting on the login endpoint; both must be addressed before the server is

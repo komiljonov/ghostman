@@ -58,6 +58,12 @@ const (
 	messageMemberNotFound    = "team member not found"
 	messageCannotRemoveOwner = "the team owner cannot be removed; transfer ownership first"
 
+	// messageProjectNotFound is also what a member without access to this
+	// particular project sees, so project existence is not observable.
+	messageProjectNotFound  = "project not found"
+	messageNotProjectOwner  = "only the team owner or the project owner can do that"
+	messageOwnerAccessFixed = "the team owner always has access to every project"
+
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"
 

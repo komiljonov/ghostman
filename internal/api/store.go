@@ -15,6 +15,7 @@ type Store interface {
 	AuthStore
 	TeamStore
 	InvitationStore
+	ProjectStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -54,6 +55,27 @@ type InvitationStore interface {
 	IsEmailTeamMember(ctx context.Context, arg db.IsEmailTeamMemberParams) (bool, error)
 
 	AcceptInvitation(ctx context.Context, invitationID, userID uuid.UUID) (db.TeamInvitation, error)
+}
+
+// ProjectStore covers projects and who may reach them. ReplaceProjectAccess
+// and SetMemberProjectAccess are transactional.
+type ProjectStore interface {
+	CreateProject(ctx context.Context, arg db.CreateProjectParams) (db.Project, error)
+	GetProjectForUser(ctx context.Context, arg db.GetProjectForUserParams) (db.GetProjectForUserRow, error)
+	UpdateProjectName(ctx context.Context, arg db.UpdateProjectNameParams) (db.Project, error)
+	DeleteProject(ctx context.Context, id uuid.UUID) error
+
+	ListAccessibleProjects(ctx context.Context, arg db.ListAccessibleProjectsParams) ([]db.ListAccessibleProjectsRow, error)
+	ListTeamProjectIDs(ctx context.Context, teamID uuid.UUID) ([]uuid.UUID, error)
+	BulkUpdateProjectOrder(ctx context.Context, arg db.BulkUpdateProjectOrderParams) error
+
+	CountProjectsInTeam(ctx context.Context, arg db.CountProjectsInTeamParams) (int64, error)
+	CountTeamMembersInList(ctx context.Context, arg db.CountTeamMembersInListParams) (int64, error)
+	ListProjectAccessUsers(ctx context.Context, projectID uuid.UUID) ([]db.ListProjectAccessUsersRow, error)
+	ListUserAccessibleProjectIDs(ctx context.Context, arg db.ListUserAccessibleProjectIDsParams) ([]uuid.UUID, error)
+
+	ReplaceProjectAccess(ctx context.Context, projectID uuid.UUID, userIDs []uuid.UUID) error
+	SetMemberProjectAccess(ctx context.Context, teamID, userID uuid.UUID, allProjects bool, projectIDs []uuid.UUID) (db.TeamMember, error)
 }
 
 // The real store must satisfy Store.
