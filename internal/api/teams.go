@@ -289,6 +289,12 @@ func (a *api) writeAuthzError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.Is(err, authz.ErrNoFolderAccess):
 		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageFolderNotFound)
 
+	case errors.Is(err, authz.ErrNoEnvironmentAccess):
+		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageEnvironmentNotFound)
+
+	case errors.Is(err, authz.ErrNoVariableAccess):
+		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageVariableNotFound)
+
 	default:
 		a.serverError(w, r, err)
 	}

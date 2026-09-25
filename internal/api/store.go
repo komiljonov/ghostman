@@ -17,6 +17,7 @@ type Store interface {
 	InvitationStore
 	ProjectStore
 	FolderStore
+	EnvironmentStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -91,6 +92,24 @@ type FolderStore interface {
 	CreateFolderInProject(ctx context.Context, arg db.CreateFolderParams) (db.Folder, error)
 	MoveFolder(ctx context.Context, id uuid.UUID, parentID *uuid.UUID, sortOrder *int32) (db.Folder, error)
 	ReorderFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, folderIDs []uuid.UUID, checkSiblings func([]uuid.UUID) error) error
+}
+
+// EnvironmentStore covers environments and their variables. The reorders are
+// transactional.
+type EnvironmentStore interface {
+	CreateEnvironment(ctx context.Context, arg db.CreateEnvironmentParams) (db.Environment, error)
+	GetEnvironmentByID(ctx context.Context, id uuid.UUID) (db.Environment, error)
+	UpdateEnvironmentName(ctx context.Context, arg db.UpdateEnvironmentNameParams) (db.Environment, error)
+	DeleteEnvironment(ctx context.Context, id uuid.UUID) error
+	ListEnvironmentsByProject(ctx context.Context, projectID uuid.UUID) ([]db.Environment, error)
+	ReorderEnvironments(ctx context.Context, projectID uuid.UUID, environmentIDs []uuid.UUID, check func([]uuid.UUID) error) error
+
+	CreateVariable(ctx context.Context, arg db.CreateVariableParams) (db.EnvironmentVariable, error)
+	GetVariableByID(ctx context.Context, id uuid.UUID) (db.EnvironmentVariable, error)
+	UpdateVariable(ctx context.Context, arg db.UpdateVariableParams) (db.EnvironmentVariable, error)
+	DeleteVariable(ctx context.Context, id uuid.UUID) error
+	ListVariablesByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]db.EnvironmentVariable, error)
+	ReorderVariables(ctx context.Context, environmentID uuid.UUID, variableIDs []uuid.UUID, check func([]uuid.UUID) error) error
 }
 
 // The real store must satisfy Store.

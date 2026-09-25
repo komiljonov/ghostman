@@ -23,6 +23,25 @@ type stubStore struct {
 	projectErr error
 	folder     db.Folder
 	folderErr  error
+
+	environment    db.Environment
+	environmentErr error
+	variable       db.EnvironmentVariable
+	variableErr    error
+}
+
+func (s stubStore) GetEnvironmentByID(_ context.Context, _ uuid.UUID) (db.Environment, error) {
+	if s.environmentErr != nil {
+		return db.Environment{}, s.environmentErr
+	}
+	return s.environment, nil
+}
+
+func (s stubStore) GetVariableByID(_ context.Context, _ uuid.UUID) (db.EnvironmentVariable, error) {
+	if s.variableErr != nil {
+		return db.EnvironmentVariable{}, s.variableErr
+	}
+	return s.variable, nil
 }
 
 func (s stubStore) GetFolderByID(_ context.Context, _ uuid.UUID) (db.Folder, error) {
@@ -305,4 +324,79 @@ func TestRequireFolderAccess(t *testing.T) {
 			t.Errorf("folder id = %s, want %s", got.ID, folderID)
 		}
 	})
+}
+
+// Environments and variables follow the folder rule: an unreachable one must
+// be indistinguishable from a missing one, at every level of the chain.
+func TestRequireEnvironmentAndVariableAccess(t *testing.T) {
+	projectID, environmentID, variableID, userID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	environment := db.Environment{ID: environmentID, ProjectID: projectID}
+	variable := db.EnvironmentVariable{ID: variableID, EnvironmentID: environmentID}
+	reachable := db.GetProjectForUserRow{Project: db.Project{ID: projectID}}
+	boom := errors.New("connection reset")
+
+	environmentTests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing environment", store: stubStore{environmentErr: pgx.ErrNoRows}, wantErr: ErrNoEnvironmentAccess},
+		{name: "project out of reach", store: stubStore{environment: environment, projectErr: pgx.ErrNoRows}, wantErr: ErrNoEnvironmentAccess},
+		{name: "database failure", store: stubStore{environmentErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{environment: environment, project: reachable}},
+	}
+
+	for _, tt := range environmentTests {
+		t.Run("environment: "+tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireEnvironmentAccess(t.Context(), environmentID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireEnvironmentAccess() error: %v", err)
+				}
+				if got.ID != environmentID {
+					t.Errorf("environment id = %s, want %s", got.ID, environmentID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireEnvironmentAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoProjectAccess) {
+				t.Error("error reveals the project, and so that the environment exists")
+			}
+		})
+	}
+
+	variableTests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing variable", store: stubStore{variableErr: pgx.ErrNoRows}, wantErr: ErrNoVariableAccess},
+		{name: "environment gone", store: stubStore{variable: variable, environmentErr: pgx.ErrNoRows}, wantErr: ErrNoVariableAccess},
+		{name: "project out of reach", store: stubStore{variable: variable, environment: environment, projectErr: pgx.ErrNoRows}, wantErr: ErrNoVariableAccess},
+		{name: "database failure", store: stubStore{variableErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{variable: variable, environment: environment, project: reachable}},
+	}
+
+	for _, tt := range variableTests {
+		t.Run("variable: "+tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireVariableAccess(t.Context(), variableID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireVariableAccess() error: %v", err)
+				}
+				if got.ID != variableID {
+					t.Errorf("variable id = %s, want %s", got.ID, variableID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireVariableAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoEnvironmentAccess) || errors.Is(err, ErrNoProjectAccess) {
+				t.Error("error reveals a parent, and so that the variable exists")
+			}
+		})
+	}
 }

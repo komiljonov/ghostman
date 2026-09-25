@@ -68,6 +68,15 @@ const (
 	// cannot reach, so folder ids are not observable either.
 	messageFolderNotFound = "folder not found"
 
+	// As with folders, these also cover an environment or variable in a
+	// project the caller cannot reach.
+	messageEnvironmentNotFound  = "environment not found"
+	messageVariableNotFound     = "variable not found"
+	messageEnvironmentNameTaken = "an environment with that name already exists in this project"
+	messageVariableKeyTaken     = "a variable with that key already exists in this environment"
+	messageInvalidVariableType  = `type must be "regular" or "secret"`
+	messageSecretValue          = "secret values are never stored on the server; keep them in the desktop client"
+
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"
 
