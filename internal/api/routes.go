@@ -52,6 +52,16 @@ func (a *api) routes() http.Handler {
 	mux.Handle("GET /api/v1/projects/{id}/access", a.requireAuth(http.HandlerFunc(a.handleListProjectAccess)))
 	mux.Handle("PUT /api/v1/projects/{id}/access", a.requireAuth(http.HandlerFunc(a.handleSetProjectAccess)))
 
+	mux.Handle("POST /api/v1/projects/{project_id}/folders", a.requireAuth(http.HandlerFunc(a.handleCreateFolder)))
+	mux.Handle("GET /api/v1/projects/{project_id}/folders", a.requireAuth(http.HandlerFunc(a.handleListFolders)))
+
+	// The order endpoint is scoped by its body: the siblings being ordered may
+	// sit at the project root, and a null parent has no path form.
+	mux.Handle("PUT /api/v1/folders/order", a.requireAuth(http.HandlerFunc(a.handleReorderFolders)))
+	mux.Handle("PATCH /api/v1/folders/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateFolder)))
+	mux.Handle("DELETE /api/v1/folders/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteFolder)))
+	mux.Handle("POST /api/v1/folders/{id}/move", a.requireAuth(http.HandlerFunc(a.handleMoveFolder)))
+
 	// Two levels deep, which the convention otherwise avoids: this configures
 	// one member's access across a whole team, so it belongs to neither the
 	// member nor any single project on its own.

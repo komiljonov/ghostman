@@ -17,12 +17,18 @@ sql:
         # into AppMetum. Renames are keyed by that singularised name.
         rename:
           app_metum: "AppMeta"
-        # Every uuid/timestamptz column in this schema is NOT NULL, so the
-        # generated code can use plain Go types instead of the pgtype wrappers.
+        # uuid/timestamptz columns use plain Go types instead of the pgtype
+        # wrappers. The one nullable uuid (folders.parent_id) becomes a pointer.
         overrides:
           - db_type: "uuid"
             go_type: "github.com/google/uuid.UUID"
             nullable: false
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
+            nullable: true
           - db_type: "timestamptz"
             go_type: "time.Time"
             nullable: false

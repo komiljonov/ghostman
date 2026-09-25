@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -254,7 +255,8 @@ func (a *api) handleReorderProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := checkSameIDSet(projectIDs, teamProjectIDs); err != nil {
+	if err := checkSameIDSet(projectIDs, teamProjectIDs,
+		"project_ids", "a project of this team", "projects of this team"); err != nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}
@@ -280,21 +282,30 @@ func (a *api) readProjectName(w http.ResponseWriter, r *http.Request) (string, b
 		return "", false
 	}
 
-	name := strings.TrimSpace(req.Name)
-
-	// Counted in runes, matching PostgreSQL's length() in the CHECK constraint.
-	length := utf8.RuneCountInString(name)
-	if length < minProjectNameLength {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, "name is required")
-		return "", false
-	}
-	if length > maxProjectNameLength {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			fmt.Sprintf("name must be at most %d characters", maxProjectNameLength))
+	name, err := validateName(req.Name, minProjectNameLength, maxProjectNameLength)
+	if err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return "", false
 	}
 
 	return name, true
+}
+
+// validateName trims a project or folder name and checks its length against
+// the table's CHECK constraint.
+func validateName(raw string, minLength, maxLength int) (string, error) {
+	name := strings.TrimSpace(raw)
+
+	// Counted in runes, matching PostgreSQL's length() in the CHECK constraint.
+	length := utf8.RuneCountInString(name)
+	if length < minLength {
+		return "", errors.New("name is required")
+	}
+	if length > maxLength {
+		return "", fmt.Errorf("name must be at most %d characters", maxLength)
+	}
+
+	return name, nil
 }
 
 // parseUUIDs converts a JSON list of ids, naming the field in any error so the
@@ -314,8 +325,9 @@ func parseUUIDs(raw []string, field string) ([]uuid.UUID, error) {
 }
 
 // checkSameIDSet reports whether got is exactly want, with no duplicates and
-// nothing missing or extra.
-func checkSameIDSet(got, want []uuid.UUID) error {
+// nothing missing or extra. field names the request list; one and all describe
+// a single member of want and the whole of it, for the error messages.
+func checkSameIDSet(got, want []uuid.UUID, field, one, all string) error {
 	expected := make(map[uuid.UUID]struct{}, len(want))
 	for _, id := range want {
 		expected[id] = struct{}{}
@@ -324,18 +336,18 @@ func checkSameIDSet(got, want []uuid.UUID) error {
 	seen := make(map[uuid.UUID]struct{}, len(got))
 	for _, id := range got {
 		if _, duplicate := seen[id]; duplicate {
-			return fmt.Errorf("project_ids lists %s more than once", id)
+			return fmt.Errorf("%s lists %s more than once", field, id)
 		}
 		seen[id] = struct{}{}
 
 		if _, ok := expected[id]; !ok {
-			return fmt.Errorf("project_ids contains %s, which is not a project of this team", id)
+			return fmt.Errorf("%s contains %s, which is not %s", field, id, one)
 		}
 	}
 
 	if len(seen) != len(expected) {
-		return fmt.Errorf("project_ids must list all %d projects of this team, got %d",
-			len(expected), len(seen))
+		return fmt.Errorf("%s must list all %d %s, got %d",
+			field, len(expected), all, len(seen))
 	}
 
 	return nil

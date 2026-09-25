@@ -21,6 +21,15 @@ type stubStore struct {
 	memberErr  error
 	project    db.GetProjectForUserRow
 	projectErr error
+	folder     db.Folder
+	folderErr  error
+}
+
+func (s stubStore) GetFolderByID(_ context.Context, _ uuid.UUID) (db.Folder, error) {
+	if s.folderErr != nil {
+		return db.Folder{}, s.folderErr
+	}
+	return s.folder, nil
 }
 
 func (s stubStore) GetTeamByID(_ context.Context, _ uuid.UUID) (db.Team, error) {
@@ -239,4 +248,61 @@ func TestRequireProjectManage(t *testing.T) {
 			t.Errorf("project id = %s, want %s", project.ID, projectID)
 		}
 	}
+}
+
+// A folder in a project the user cannot reach must be indistinguishable from a
+// folder that does not exist: both are ErrNoFolderAccess, never
+// ErrNoProjectAccess.
+func TestRequireFolderAccess(t *testing.T) {
+	folderID, projectID, userID := uuid.New(), uuid.New(), uuid.New()
+	folder := db.Folder{ID: folderID, ProjectID: projectID}
+
+	t.Run("missing folder", func(t *testing.T) {
+		checker := New(stubStore{folderErr: pgx.ErrNoRows})
+
+		_, err := checker.RequireFolderAccess(t.Context(), folderID, userID)
+		if !errors.Is(err, ErrNoFolderAccess) {
+			t.Fatalf("RequireFolderAccess() error = %v, want %v", err, ErrNoFolderAccess)
+		}
+	})
+
+	t.Run("project out of reach", func(t *testing.T) {
+		checker := New(stubStore{folder: folder, projectErr: pgx.ErrNoRows})
+
+		_, err := checker.RequireFolderAccess(t.Context(), folderID, userID)
+		if !errors.Is(err, ErrNoFolderAccess) {
+			t.Fatalf("RequireFolderAccess() error = %v, want %v", err, ErrNoFolderAccess)
+		}
+		if errors.Is(err, ErrNoProjectAccess) {
+			t.Error("error reveals the project, and so that the folder exists")
+		}
+	})
+
+	t.Run("database failure is not a permission answer", func(t *testing.T) {
+		boom := errors.New("connection reset")
+		checker := New(stubStore{folderErr: boom})
+
+		_, err := checker.RequireFolderAccess(t.Context(), folderID, userID)
+		if errors.Is(err, ErrNoFolderAccess) {
+			t.Error("a database failure was reported as ErrNoFolderAccess, which would answer 404")
+		}
+		if !errors.Is(err, boom) {
+			t.Errorf("error = %v, want it to wrap %v", err, boom)
+		}
+	})
+
+	t.Run("project reachable", func(t *testing.T) {
+		checker := New(stubStore{
+			folder:  folder,
+			project: db.GetProjectForUserRow{Project: db.Project{ID: projectID}},
+		})
+
+		got, err := checker.RequireFolderAccess(t.Context(), folderID, userID)
+		if err != nil {
+			t.Fatalf("RequireFolderAccess() error: %v", err)
+		}
+		if got.ID != folderID {
+			t.Errorf("folder id = %s, want %s", got.ID, folderID)
+		}
+	})
 }

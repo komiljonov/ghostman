@@ -4,7 +4,7 @@ Backend for Ghostman, a lightweight API client (Postman alternative).
 The desktop app (Wails + React) lives in a separate repo; this is only the sync/cloud server.
 
 ## Stack — fixed decisions, do not substitute
-- Go 1.22+, stdlib net/http routing (method + path patterns). No Gin. No chi unless routes outgrow stdlib.
+- Go 1.25.7+ (go.mod floor, set by goose/pgx), stdlib net/http routing (method + path patterns). No Gin. No chi unless routes outgrow stdlib.
 - PostgreSQL, jackc/pgx/v5 with pgxpool
 - sqlc (sql_package: pgx/v5), schema derived from migrations dir — no ORM, ever
 - goose migrations: plain SQL, embedded via embed.FS, auto-run on startup
@@ -23,11 +23,13 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null)
 
 ## Domain model
 Designed so far: users + sessions (step 1), teams + team_members (step 2),
-team_invitations (step 3), projects + project_access (step 4).
-Everything else (folders, requests, environments, sync) is NOT designed yet —
+team_invitations (step 3), projects + project_access (step 4),
+folders (step 5: a tree per project via nullable parent_id, NULL = root).
+Everything else (requests, environments, sync) is NOT designed yet —
 do not invent product tables without discussion.
 
 ## Project access rule

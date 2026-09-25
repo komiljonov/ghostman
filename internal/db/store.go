@@ -135,6 +135,45 @@ func (s *Store) SetMemberProjectAccess(
 	return member, nil
 }
 
+// RemoveTeamMember deletes a membership together with the member's explicit
+// project grants in that team, and reports how many membership rows were
+// removed (0 when the user was not a member).
+//
+// The grants must go in the same transaction: left behind, they would come back
+// to life if the user rejoined and was later switched off all_projects.
+func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) (int64, error) {
+	var removed int64
+
+	err := s.inTx(ctx, func(qtx *Queries) error {
+		var err error
+		removed, err = qtx.DeleteTeamMember(ctx, DeleteTeamMemberParams{
+			TeamID: teamID,
+			UserID: userID,
+		})
+		if err != nil {
+			return fmt.Errorf("delete team member: %w", err)
+		}
+
+		if removed == 0 {
+			return nil
+		}
+
+		if err := qtx.DeleteAllUserAccessInTeam(ctx, DeleteAllUserAccessInTeamParams{
+			UserID: userID,
+			TeamID: teamID,
+		}); err != nil {
+			return fmt.Errorf("clear member project access: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return removed, nil
+}
+
 // inTx runs fn inside a transaction, rolling back unless it returns nil.
 func (s *Store) inTx(ctx context.Context, fn func(*Queries) error) error {
 	tx, err := s.pool.Begin(ctx)

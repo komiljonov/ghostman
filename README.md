@@ -93,6 +93,12 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | GET    | `/api/v1/projects/{id}/access` | bearer | Team owner or project owner. The explicit grant list. |
 | PUT    | `/api/v1/projects/{id}/access` | bearer | Team owner or project owner. `{user_ids}` replaces the grant list. |
 | PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
+| POST   | `/api/v1/projects/{project_id}/folders` | bearer | Project access. `{name, parent_id?}` → `201`; appended after its siblings. `400` if the parent is not in this project. |
+| GET    | `/api/v1/projects/{project_id}/folders` | bearer | Project access. Every folder as a flat list `[{id, parent_id, name, sort_order, created_at}]`. |
+| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name}` → `200`. |
+| POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
+| PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
+| DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
 
 Errors always use a single envelope:
 
@@ -111,6 +117,11 @@ URL shape, never nested more than one level deep:
 - a state change is a verb sub-path on the flat resource:
   `POST /invitations/{id}/accept`
 - `/me/...` addresses the current user's own collections: `GET /me/invitations`
+
+Deliberate exceptions: `DELETE /teams/{team_id}/members/{user_id}`,
+`PUT /teams/{team_id}/members/{user_id}/access`,
+`PUT /teams/{team_id}/projects/order`, and `PUT /folders/order`, which takes its
+scope in the body because the parent being reordered may be the project root.
 
 ## Authentication
 
@@ -200,7 +211,28 @@ rows:
 
 Explicit grants only matter for members whose `all_projects` is false; they are
 stored regardless, so turning the flag off restores a previously configured
-list.
+list. Leaving or being removed from a team deletes that member's grants in the
+team, in the same transaction as the membership.
+
+## Folders
+
+Folders form a tree inside a project: `parent_id` points at another folder of
+the same project, or is null at the root. `GET /projects/{project_id}/folders`
+returns the whole tree as one flat list, grouped by parent and ordered by
+`sort_order` within each group, and the client assembles it.
+
+Anyone who can reach the project can create, rename, move, reorder and delete
+its folders; there is no separate management right. No access is **404**, and a
+folder in an unreachable project looks exactly like one that does not exist.
+
+- A new folder, or a moved one without an explicit `sort_order`, goes after its
+  siblings.
+- A move is rejected with `400` if the new parent is the folder itself or one of
+  its descendants, or belongs to another project. Moves within a project are
+  serialised, so two concurrent moves cannot combine into a cycle.
+- `PUT /folders/order` rewrites one sibling set atomically; the list must be
+  exactly that set.
+- Deleting a folder deletes its subtree; deleting a project deletes its folders.
 
 ## Testing
 
@@ -240,7 +272,7 @@ needed on any platform.
 cmd/server/            entrypoint: config, logger, pool, migrations, HTTP server, shutdown
 internal/api/          HTTP server, routes, middleware, handlers, JSON helpers
 internal/auth/         argon2id password hashing and session tokens (no HTTP, no SQL)
-internal/authz/        permission checks (team membership and ownership)
+internal/authz/        permission checks (team membership and ownership, project and folder access)
 internal/config/       Config struct and Load()
 internal/db/           pgxpool setup, goose runner, transactional Store, sqlc output
 internal/db/migrations goose SQL migrations (embedded)
@@ -297,7 +329,7 @@ full documented list.
 
 ## Not implemented yet
 
-Projects, collections, sync and every other product table. Auth covers only
+Requests, environments, sync and every other product table. Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.
 
@@ -307,8 +339,9 @@ owns a team cannot be deleted), and **no email delivery**: an invitation exists
 only as a row, and the inviter has to tell the invitee out of band. Invitations
 do not expire.
 
-Projects hold nothing yet — no folders, requests or environments — and cannot be
-duplicated or moved between teams. Moving a project is deferred deliberately:
+Projects hold only folders so far — no requests or environments — and cannot be
+duplicated or moved between teams. Folders cannot be duplicated or moved
+between projects. Moving a project is deferred deliberately:
 its access rows point at users who may not be in the destination team, and that
 question is unresolved.
 
