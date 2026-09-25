@@ -162,3 +162,51 @@ func (unimplementedTeamStore) MoveFolder(_ context.Context, _ uuid.UUID, _ *uuid
 func (unimplementedTeamStore) ReorderFolders(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) CreateEnvironment(_ context.Context, _ db.CreateEnvironmentParams) (db.Environment, error) {
+	return db.Environment{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetEnvironmentByID(_ context.Context, _ uuid.UUID) (db.Environment, error) {
+	return db.Environment{}, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateEnvironmentName(_ context.Context, _ db.UpdateEnvironmentNameParams) (db.Environment, error) {
+	return db.Environment{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteEnvironment(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) ListEnvironmentsByProject(_ context.Context, _ uuid.UUID) ([]db.Environment, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ReorderEnvironments(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) CreateVariable(_ context.Context, _ db.CreateVariableParams) (db.EnvironmentVariable, error) {
+	return db.EnvironmentVariable{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetVariableByID(_ context.Context, _ uuid.UUID) (db.EnvironmentVariable, error) {
+	return db.EnvironmentVariable{}, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateVariable(_ context.Context, _ db.UpdateVariableParams) (db.EnvironmentVariable, error) {
+	return db.EnvironmentVariable{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteVariable(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) ListVariablesByEnvironment(_ context.Context, _ uuid.UUID) ([]db.EnvironmentVariable, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) ReorderVariables(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}

@@ -17,6 +17,24 @@ type AppMeta struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Environment struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	SortOrder int32     `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type EnvironmentVariable struct {
+	ID            uuid.UUID `json:"id"`
+	EnvironmentID uuid.UUID `json:"environment_id"`
+	Key           string    `json:"key"`
+	Type          string    `json:"type"`
+	Value         *string   `json:"value"`
+	SortOrder     int32     `json:"sort_order"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type Folder struct {
 	ID        uuid.UUID  `json:"id"`
 	ProjectID uuid.UUID  `json:"project_id"`

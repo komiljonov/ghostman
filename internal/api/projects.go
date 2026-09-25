@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -291,21 +290,27 @@ func (a *api) readProjectName(w http.ResponseWriter, r *http.Request) (string, b
 	return name, true
 }
 
-// validateName trims a project or folder name and checks its length against
-// the table's CHECK constraint.
+// validateName trims a project, folder or environment name and checks its
+// length against the table's CHECK constraint.
 func validateName(raw string, minLength, maxLength int) (string, error) {
-	name := strings.TrimSpace(raw)
+	return validateTrimmedLength("name", raw, minLength, maxLength)
+}
+
+// validateTrimmedLength trims a text field and checks its length, naming the
+// field in any error.
+func validateTrimmedLength(field, raw string, minLength, maxLength int) (string, error) {
+	value := strings.TrimSpace(raw)
 
 	// Counted in runes, matching PostgreSQL's length() in the CHECK constraint.
-	length := utf8.RuneCountInString(name)
+	length := utf8.RuneCountInString(value)
 	if length < minLength {
-		return "", errors.New("name is required")
+		return "", fmt.Errorf("%s is required", field)
 	}
 	if length > maxLength {
-		return "", fmt.Errorf("name must be at most %d characters", maxLength)
+		return "", fmt.Errorf("%s must be at most %d characters", field, maxLength)
 	}
 
-	return name, nil
+	return value, nil
 }
 
 // parseUUIDs converts a JSON list of ids, naming the field in any error so the

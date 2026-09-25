@@ -62,6 +62,21 @@ func (a *api) routes() http.Handler {
 	mux.Handle("DELETE /api/v1/folders/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteFolder)))
 	mux.Handle("POST /api/v1/folders/{id}/move", a.requireAuth(http.HandlerFunc(a.handleMoveFolder)))
 
+	mux.Handle("POST /api/v1/projects/{project_id}/environments", a.requireAuth(http.HandlerFunc(a.handleCreateEnvironment)))
+	mux.Handle("GET /api/v1/projects/{project_id}/environments", a.requireAuth(http.HandlerFunc(a.handleListEnvironments)))
+
+	// Like folders/order, the reorder endpoints name their scope in the body.
+	mux.Handle("PUT /api/v1/environments/order", a.requireAuth(http.HandlerFunc(a.handleReorderEnvironments)))
+	mux.Handle("PATCH /api/v1/environments/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateEnvironment)))
+	mux.Handle("DELETE /api/v1/environments/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteEnvironment)))
+
+	mux.Handle("POST /api/v1/environments/{env_id}/variables", a.requireAuth(http.HandlerFunc(a.handleCreateVariable)))
+	mux.Handle("GET /api/v1/environments/{env_id}/variables", a.requireAuth(http.HandlerFunc(a.handleListVariables)))
+
+	mux.Handle("PUT /api/v1/variables/order", a.requireAuth(http.HandlerFunc(a.handleReorderVariables)))
+	mux.Handle("PATCH /api/v1/variables/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateVariable)))
+	mux.Handle("DELETE /api/v1/variables/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteVariable)))
+
 	// Two levels deep, which the convention otherwise avoids: this configures
 	// one member's access across a whole team, so it belongs to neither the
 	// member nor any single project on its own.

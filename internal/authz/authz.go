@@ -36,6 +36,11 @@ var (
 	// ErrNoFolderAccess means the folder does not exist or its project is out
 	// of the user's reach. Both are answered with 404 and must look the same.
 	ErrNoFolderAccess = errors.New("authz: user cannot access the folder")
+
+	// ErrNoEnvironmentAccess and ErrNoVariableAccess are the same rule for
+	// environments and their variables: missing and unreachable look alike.
+	ErrNoEnvironmentAccess = errors.New("authz: user cannot access the environment")
+	ErrNoVariableAccess    = errors.New("authz: user cannot access the variable")
 )
 
 // Store is the query subset these checks need.
@@ -44,6 +49,8 @@ type Store interface {
 	GetTeamMember(ctx context.Context, arg db.GetTeamMemberParams) (db.TeamMember, error)
 	GetProjectForUser(ctx context.Context, arg db.GetProjectForUserParams) (db.GetProjectForUserRow, error)
 	GetFolderByID(ctx context.Context, id uuid.UUID) (db.Folder, error)
+	GetEnvironmentByID(ctx context.Context, id uuid.UUID) (db.Environment, error)
+	GetVariableByID(ctx context.Context, id uuid.UUID) (db.EnvironmentVariable, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -174,4 +181,51 @@ func (c *Checker) RequireFolderAccess(ctx context.Context, folderID, userID uuid
 	}
 
 	return folder, nil
+}
+
+// RequireEnvironmentAccess returns the environment when the user may reach its
+// project. Like folders, environments are working material: project access is
+// enough to change them.
+//
+// A missing environment and one in an unreachable project both come back as
+// ErrNoEnvironmentAccess, so the environment id is not observable.
+func (c *Checker) RequireEnvironmentAccess(ctx context.Context, environmentID, userID uuid.UUID) (db.Environment, error) {
+	environment, err := c.store.GetEnvironmentByID(ctx, environmentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Environment{}, ErrNoEnvironmentAccess
+		}
+		return db.Environment{}, fmt.Errorf("looking up environment: %w", err)
+	}
+
+	if _, err := c.RequireProjectAccess(ctx, environment.ProjectID, userID); err != nil {
+		if errors.Is(err, ErrNoProjectAccess) {
+			return db.Environment{}, ErrNoEnvironmentAccess
+		}
+		return db.Environment{}, err
+	}
+
+	return environment, nil
+}
+
+// RequireVariableAccess returns the variable when the user may reach the
+// project its environment belongs to. A missing variable and an unreachable
+// one both come back as ErrNoVariableAccess.
+func (c *Checker) RequireVariableAccess(ctx context.Context, variableID, userID uuid.UUID) (db.EnvironmentVariable, error) {
+	variable, err := c.store.GetVariableByID(ctx, variableID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.EnvironmentVariable{}, ErrNoVariableAccess
+		}
+		return db.EnvironmentVariable{}, fmt.Errorf("looking up variable: %w", err)
+	}
+
+	if _, err := c.RequireEnvironmentAccess(ctx, variable.EnvironmentID, userID); err != nil {
+		if errors.Is(err, ErrNoEnvironmentAccess) {
+			return db.EnvironmentVariable{}, ErrNoVariableAccess
+		}
+		return db.EnvironmentVariable{}, err
+	}
+
+	return variable, nil
 }

@@ -99,6 +99,16 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
 | PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
 | DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
+| POST   | `/api/v1/projects/{project_id}/environments` | bearer | Project access. `{name}` → `201`. `409` if the name is taken in the project (case-insensitive). |
+| GET    | `/api/v1/projects/{project_id}/environments` | bearer | Project access. `[{id, name, sort_order, created_at}]` in order. |
+| PATCH  | `/api/v1/environments/{id}` | bearer | Project access. `{name}` → `200`; `409` on a name clash. |
+| DELETE | `/api/v1/environments/{id}` | bearer | Project access. `204`; its variables go with it. |
+| PUT    | `/api/v1/environments/order` | bearer | Project access. `{project_id, environment_ids}` must list every environment of the project. `204`. |
+| POST   | `/api/v1/environments/{env_id}/variables` | bearer | Project access. `{key, type?, value?}` → `201` `{id, key, type, value, sort_order}`. `type` is `regular` (default) or `secret`; a secret with a value is `400`. `409` on a duplicate key (case-insensitive). |
+| GET    | `/api/v1/environments/{env_id}/variables` | bearer | Project access. The variables in order; secrets have `value: null`. |
+| PATCH  | `/api/v1/variables/{id}` | bearer | Project access. `{key?, type?, value?}` → `200`. Making a variable secret discards its value. |
+| DELETE | `/api/v1/variables/{id}` | bearer | Project access. `204`. |
+| PUT    | `/api/v1/variables/order` | bearer | Project access. `{environment_id, variable_ids}` must list every variable of the environment. `204`. |
 
 Errors always use a single envelope:
 
@@ -122,6 +132,8 @@ Deliberate exceptions: `DELETE /teams/{team_id}/members/{user_id}`,
 `PUT /teams/{team_id}/members/{user_id}/access`,
 `PUT /teams/{team_id}/projects/order`, and `PUT /folders/order`, which takes its
 scope in the body because the parent being reordered may be the project root.
+`PUT /environments/order` and `PUT /variables/order` follow the same body-scoped
+shape.
 
 ## Authentication
 
@@ -234,6 +246,31 @@ folder in an unreachable project looks exactly like one that does not exist.
   exactly that set.
 - Deleting a folder deletes its subtree; deleting a project deletes its folders.
 
+## Environments
+
+An environment is a named set of variables inside a project (`dev`, `staging`,
+`prod`). Names are unique per project and variable keys unique per environment,
+both regardless of case (`base_url` and `BASE_URL` cannot coexist, so a
+reference is never ambiguous; the key keeps the case it was written in), and
+both lists keep a 0-based
+`sort_order`. As with folders, anyone who can reach the project may change them,
+and no access is a **404** indistinguishable from a missing id. Deleting an
+environment deletes its variables; deleting a project deletes its environments.
+
+**Secret values never reach the server.** A variable is `regular` or `secret`.
+For a secret the server stores only the key — the value lives solely in the
+desktop client's local storage:
+
+- creating or updating a secret with a non-empty value is refused with `400`;
+- changing a regular variable to secret discards its stored value in the same
+  update;
+- secrets are always returned with `value: null`;
+- the database enforces it independently: a CHECK constraint refuses any
+  secret row that carries a value.
+
+Resolving `{{variable}}` references, the active environment, and secret values
+are all client concerns.
+
 ## Testing
 
 `task test` runs everything. Tests that need real SQL behaviour (transactions,
@@ -272,7 +309,7 @@ needed on any platform.
 cmd/server/            entrypoint: config, logger, pool, migrations, HTTP server, shutdown
 internal/api/          HTTP server, routes, middleware, handlers, JSON helpers
 internal/auth/         argon2id password hashing and session tokens (no HTTP, no SQL)
-internal/authz/        permission checks (team membership and ownership, project and folder access)
+internal/authz/        permission checks (team membership and ownership; project, folder, environment and variable access)
 internal/config/       Config struct and Load()
 internal/db/           pgxpool setup, goose runner, transactional Store, sqlc output
 internal/db/migrations goose SQL migrations (embedded)
@@ -329,7 +366,7 @@ full documented list.
 
 ## Not implemented yet
 
-Requests, environments, sync and every other product table. Auth covers only
+Requests, sync and every other product table. Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.
 
@@ -339,7 +376,7 @@ owns a team cannot be deleted), and **no email delivery**: an invitation exists
 only as a row, and the inviter has to tell the invitee out of band. Invitations
 do not expire.
 
-Projects hold only folders so far — no requests or environments — and cannot be
+Projects hold folders and environments so far — no requests — and cannot be
 duplicated or moved between teams. Folders cannot be duplicated or moved
 between projects. Moving a project is deferred deliberately:
 its access rows point at users who may not be in the destination team, and that
