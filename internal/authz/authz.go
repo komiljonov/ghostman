@@ -41,6 +41,9 @@ var (
 	// environments and their variables: missing and unreachable look alike.
 	ErrNoEnvironmentAccess = errors.New("authz: user cannot access the environment")
 	ErrNoVariableAccess    = errors.New("authz: user cannot access the variable")
+
+	// ErrNoRequestAccess is the same rule for requests.
+	ErrNoRequestAccess = errors.New("authz: user cannot access the request")
 )
 
 // Store is the query subset these checks need.
@@ -51,6 +54,7 @@ type Store interface {
 	GetFolderByID(ctx context.Context, id uuid.UUID) (db.Folder, error)
 	GetEnvironmentByID(ctx context.Context, id uuid.UUID) (db.Environment, error)
 	GetVariableByID(ctx context.Context, id uuid.UUID) (db.EnvironmentVariable, error)
+	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -228,4 +232,29 @@ func (c *Checker) RequireVariableAccess(ctx context.Context, variableID, userID 
 	}
 
 	return variable, nil
+}
+
+// RequireRequestAccess returns the request when the user may reach its
+// project. Requests are working material like folders: project access is
+// enough to change them.
+//
+// A missing request and one in an unreachable project both come back as
+// ErrNoRequestAccess, so the request id is not observable.
+func (c *Checker) RequireRequestAccess(ctx context.Context, requestID, userID uuid.UUID) (db.Request, error) {
+	request, err := c.store.GetRequestByID(ctx, requestID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Request{}, ErrNoRequestAccess
+		}
+		return db.Request{}, fmt.Errorf("looking up request: %w", err)
+	}
+
+	if _, err := c.RequireProjectAccess(ctx, request.ProjectID, userID); err != nil {
+		if errors.Is(err, ErrNoProjectAccess) {
+			return db.Request{}, ErrNoRequestAccess
+		}
+		return db.Request{}, err
+	}
+
+	return request, nil
 }

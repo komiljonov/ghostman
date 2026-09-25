@@ -77,6 +77,16 @@ func (a *api) routes() http.Handler {
 	mux.Handle("PATCH /api/v1/variables/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateVariable)))
 	mux.Handle("DELETE /api/v1/variables/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteVariable)))
 
+	mux.Handle("POST /api/v1/projects/{project_id}/requests", a.requireAuth(http.HandlerFunc(a.handleCreateRequest)))
+	mux.Handle("GET /api/v1/projects/{project_id}/requests", a.requireAuth(http.HandlerFunc(a.handleListRequests)))
+
+	// Body-scoped like folders/order: the folder may be the project root.
+	mux.Handle("PUT /api/v1/requests/order", a.requireAuth(http.HandlerFunc(a.handleReorderRequests)))
+	mux.Handle("GET /api/v1/requests/{id}", a.requireAuth(http.HandlerFunc(a.handleGetRequest)))
+	mux.Handle("PATCH /api/v1/requests/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateRequest)))
+	mux.Handle("DELETE /api/v1/requests/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteRequest)))
+	mux.Handle("POST /api/v1/requests/{id}/move", a.requireAuth(http.HandlerFunc(a.handleMoveRequest)))
+
 	// Two levels deep, which the convention otherwise avoids: this configures
 	// one member's access across a whole team, so it belongs to neither the
 	// member nor any single project on its own.

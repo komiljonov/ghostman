@@ -75,6 +75,7 @@ const (
 	messageEnvironmentNameTaken = "an environment with that name already exists in this project"
 	messageVariableKeyTaken     = "a variable with that key already exists in this environment"
 	messageInvalidVariableType  = `type must be "regular" or "secret"`
+	messageRequestNotFound      = "request not found"
 	messageSecretValue          = "secret values are never stored on the server; keep them in the desktop client"
 
 	//nolint:gosec // G101: a message shown to clients, not a credential.

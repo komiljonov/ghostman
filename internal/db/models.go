@@ -5,6 +5,7 @@
 package db
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,6 +58,21 @@ type ProjectAccess struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	UserID    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Request struct {
+	ID          uuid.UUID       `json:"id"`
+	ProjectID   uuid.UUID       `json:"project_id"`
+	FolderID    *uuid.UUID      `json:"folder_id"`
+	Name        string          `json:"name"`
+	Method      string          `json:"method"`
+	Url         string          `json:"url"`
+	Headers     json.RawMessage `json:"headers"`
+	QueryParams json.RawMessage `json:"query_params"`
+	Body        json.RawMessage `json:"body"`
+	SortOrder   int32           `json:"sort_order"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 type Session struct {

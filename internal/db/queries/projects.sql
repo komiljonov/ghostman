@@ -100,3 +100,14 @@ SET sort_order = ordered.position::int
 FROM unnest(@project_ids::uuid[]) WITH ORDINALITY AS ordered(id, position)
 WHERE projects.id = ordered.id
   AND projects.team_id = @team_id;
+
+-- name: LockProject :exec
+-- Serialises tree changes within one project (folder moves and reorders,
+-- request moves and reorders), so concurrent writers cannot interleave a
+-- check with a write: two folder moves could otherwise each pass the cycle
+-- check and together create a cycle. NO KEY UPDATE does not block the
+-- key-share locks taken by inserts referencing the project.
+SELECT id
+FROM projects
+WHERE id = $1
+FOR NO KEY UPDATE;

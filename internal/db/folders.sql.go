@@ -206,21 +206,6 @@ func (q *Queries) ListSiblingFolderIDs(ctx context.Context, arg ListSiblingFolde
 	return items, nil
 }
 
-const lockProjectFolders = `-- name: LockProjectFolders :exec
-SELECT id
-FROM projects
-WHERE id = $1
-FOR NO KEY UPDATE
-`
-
-// Serialises tree changes within one project, so two concurrent moves cannot
-// each pass the cycle check and together create a cycle. NO KEY UPDATE does
-// not block the key-share locks taken by inserts referencing the project.
-func (q *Queries) LockProjectFolders(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, lockProjectFolders, id)
-	return err
-}
-
 const updateFolderName = `-- name: UpdateFolderName :one
 UPDATE folders
 SET name = $2

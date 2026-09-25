@@ -45,12 +45,12 @@ func (s *Store) MoveFolder(ctx context.Context, id uuid.UUID, parentID *uuid.UUI
 			return err
 		}
 
-		if err = qtx.LockProjectFolders(ctx, folder.ProjectID); err != nil {
-			return fmt.Errorf("lock project folders: %w", err)
+		if err = qtx.LockProject(ctx, folder.ProjectID); err != nil {
+			return fmt.Errorf("lock project: %w", err)
 		}
 
 		if parentID != nil {
-			if err = requireParentInProject(ctx, qtx, *parentID, folder.ProjectID); err != nil {
+			if err = requireFolderInProject(ctx, qtx, *parentID, folder.ProjectID, ErrInvalidParentFolder); err != nil {
 				return err
 			}
 
@@ -97,12 +97,12 @@ func (s *Store) ReorderFolders(
 	checkSiblings func(siblings []uuid.UUID) error,
 ) error {
 	return s.inTx(ctx, func(qtx *Queries) error {
-		if err := qtx.LockProjectFolders(ctx, projectID); err != nil {
-			return fmt.Errorf("lock project folders: %w", err)
+		if err := qtx.LockProject(ctx, projectID); err != nil {
+			return fmt.Errorf("lock project: %w", err)
 		}
 
 		if parentID != nil {
-			if err := requireParentInProject(ctx, qtx, *parentID, projectID); err != nil {
+			if err := requireFolderInProject(ctx, qtx, *parentID, projectID, ErrInvalidParentFolder); err != nil {
 				return err
 			}
 		}
@@ -131,19 +131,20 @@ func (s *Store) ReorderFolders(
 	})
 }
 
-// requireParentInProject returns ErrInvalidParentFolder unless parentID is a
-// folder of projectID.
-func requireParentInProject(ctx context.Context, q *Queries, parentID, projectID uuid.UUID) error {
-	parent, err := q.GetFolderByID(ctx, parentID)
+// requireFolderInProject returns notInProject unless folderID is a folder of
+// projectID. Callers pass the error that names their field (a folder's
+// parent, a request's folder).
+func requireFolderInProject(ctx context.Context, q *Queries, folderID, projectID uuid.UUID, notInProject error) error {
+	folder, err := q.GetFolderByID(ctx, folderID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrInvalidParentFolder
+			return notInProject
 		}
-		return fmt.Errorf("look up parent folder: %w", err)
+		return fmt.Errorf("look up folder: %w", err)
 	}
 
-	if parent.ProjectID != projectID {
-		return ErrInvalidParentFolder
+	if folder.ProjectID != projectID {
+		return notInProject
 	}
 
 	return nil
@@ -153,7 +154,7 @@ func requireParentInProject(ctx context.Context, q *Queries, parentID, projectID
 // any, is a folder of the same project; otherwise ErrInvalidParentFolder.
 func (s *Store) CreateFolderInProject(ctx context.Context, arg CreateFolderParams) (Folder, error) {
 	if arg.ParentID != nil {
-		if err := requireParentInProject(ctx, s.Queries, *arg.ParentID, arg.ProjectID); err != nil {
+		if err := requireFolderInProject(ctx, s.Queries, *arg.ParentID, arg.ProjectID, ErrInvalidParentFolder); err != nil {
 			return Folder{}, err
 		}
 	}

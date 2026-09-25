@@ -18,6 +18,7 @@ type Store interface {
 	ProjectStore
 	FolderStore
 	EnvironmentStore
+	RequestStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -110,6 +111,19 @@ type EnvironmentStore interface {
 	DeleteVariable(ctx context.Context, id uuid.UUID) error
 	ListVariablesByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]db.EnvironmentVariable, error)
 	ReorderVariables(ctx context.Context, environmentID uuid.UUID, variableIDs []uuid.UUID, check func([]uuid.UUID) error) error
+}
+
+// RequestStore covers requests. CreateRequestInProject checks the folder;
+// MoveRequest and ReorderRequests are transactional under the project lock.
+type RequestStore interface {
+	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
+	ListRequestsByProject(ctx context.Context, projectID uuid.UUID) ([]db.ListRequestsByProjectRow, error)
+	UpdateRequestBasics(ctx context.Context, arg db.UpdateRequestBasicsParams) (db.Request, error)
+	DeleteRequest(ctx context.Context, id uuid.UUID) error
+
+	CreateRequestInProject(ctx context.Context, arg db.CreateRequestParams) (db.Request, error)
+	MoveRequest(ctx context.Context, id uuid.UUID, folderID *uuid.UUID, sortOrder *int32) (db.Request, error)
+	ReorderRequests(ctx context.Context, projectID uuid.UUID, folderID *uuid.UUID, requestIDs []uuid.UUID, checkSiblings func([]uuid.UUID) error) error
 }
 
 // The real store must satisfy Store.

@@ -23,17 +23,21 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
-- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order and PUT /variables/order (same body-scoped shape)
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order and PUT /requests/order (same body-scoped shape)
 
 ## Domain model
 Designed so far: users + sessions (step 1), teams + team_members (step 2),
 team_invitations (step 3), projects + project_access (step 4),
 folders (step 5: a tree per project via nullable parent_id, NULL = root),
-environments + environment_variables (step 6).
-Everything else (requests, sync) is NOT designed yet —
+environments + environment_variables (step 6),
+requests (step 7: leaves of the folder tree via nullable folder_id, NULL = root).
+Step 7a exposes name/method/url/folder/order only; headers, query_params and
+body columns already exist for 7b/7c and are read-only via GET /requests/{id}.
+Everything else (sync) is NOT designed yet —
 do not invent product tables without discussion.
-sort_order is 0-based for new code (environments, variables). Older reorder
-endpoints (projects, folders) still write 1-based positions.
+sort_order is 0-based for new code (environments, variables, requests). Older
+reorder endpoints (projects, folders) still write 1-based positions.
+Tree writes (folder/request moves and reorders) run under db LockProject.
 
 ## Secret variables
 The server stores a secret variable's key but NEVER its value — values live only
