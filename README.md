@@ -109,6 +109,13 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PATCH  | `/api/v1/variables/{id}` | bearer | Project access. `{key?, type?, value?}` → `200`. Making a variable secret discards its value. |
 | DELETE | `/api/v1/variables/{id}` | bearer | Project access. `204`. |
 | PUT    | `/api/v1/variables/order` | bearer | Project access. `{environment_id, variable_ids}` must list every variable of the environment. `204`. |
+| POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
+| GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
+| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body` (read-only for now). |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?}` → `200`; partial update. |
+| POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
+| PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
+| DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
 
 Errors always use a single envelope:
 
@@ -132,8 +139,8 @@ Deliberate exceptions: `DELETE /teams/{team_id}/members/{user_id}`,
 `PUT /teams/{team_id}/members/{user_id}/access`,
 `PUT /teams/{team_id}/projects/order`, and `PUT /folders/order`, which takes its
 scope in the body because the parent being reordered may be the project root.
-`PUT /environments/order` and `PUT /variables/order` follow the same body-scoped
-shape.
+`PUT /environments/order`, `PUT /variables/order` and `PUT /requests/order`
+follow the same body-scoped shape.
 
 ## Authentication
 
@@ -271,6 +278,27 @@ desktop client's local storage:
 Resolving `{{variable}}` references, the active environment, and secret values
 are all client concerns.
 
+## Requests
+
+Requests are the leaves of a project's folder tree: `folder_id` points at a
+folder of the same project, or is null at the root. Like folders, they are open
+to anyone who can reach the project, and no access is a **404** that looks
+exactly like a missing id.
+
+- `GET /projects/{project_id}/requests` returns every request of the project in
+  one flat list, grouped by folder and ordered by `sort_order` (0-based) within
+  each; the client places them in the tree. Deleting a folder deletes the
+  requests in its subtree.
+- The url is opaque to the server: it may be empty and may contain
+  `{{variable}}` references. Only its length is limited (8192 characters).
+  `method` is one of `GET POST PUT PATCH DELETE HEAD OPTIONS`, in upper case.
+- `PATCH` is a partial update of name, method and url; `updated_at` moves on
+  every update and move.
+- Moves and reorders run under the same per-project lock as folder moves.
+
+Headers, query parameters and body are stored already but are only readable,
+through `GET /requests/{id}`; editing them comes in a later step.
+
 ## Testing
 
 `task test` runs everything. Tests that need real SQL behaviour (transactions,
@@ -309,7 +337,7 @@ needed on any platform.
 cmd/server/            entrypoint: config, logger, pool, migrations, HTTP server, shutdown
 internal/api/          HTTP server, routes, middleware, handlers, JSON helpers
 internal/auth/         argon2id password hashing and session tokens (no HTTP, no SQL)
-internal/authz/        permission checks (team membership and ownership; project, folder, environment and variable access)
+internal/authz/        permission checks (team membership and ownership; project, folder, environment, variable and request access)
 internal/config/       Config struct and Load()
 internal/db/           pgxpool setup, goose runner, transactional Store, sqlc output
 internal/db/migrations goose SQL migrations (embedded)
@@ -366,7 +394,9 @@ full documented list.
 
 ## Not implemented yet
 
-Requests, sync and every other product table. Auth covers only
+Sync and every other product table. Requests have no editable headers, query
+params or body yet, no per-request auth, history or duplication, and are never
+executed by the server (sending them is the client's job). Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.
 
@@ -376,8 +406,8 @@ owns a team cannot be deleted), and **no email delivery**: an invitation exists
 only as a row, and the inviter has to tell the invitee out of band. Invitations
 do not expire.
 
-Projects hold folders and environments so far — no requests — and cannot be
-duplicated or moved between teams. Folders cannot be duplicated or moved
+Projects hold folders, requests and environments, and cannot be duplicated or
+moved between teams. Folders and requests cannot be duplicated or moved
 between projects. Moving a project is deferred deliberately:
 its access rows point at users who may not be in the destination team, and that
 question is unresolved.

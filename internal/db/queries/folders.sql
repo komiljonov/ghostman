@@ -96,12 +96,3 @@ WITH RECURSIVE ancestors AS (
 SELECT EXISTS (
     SELECT 1 FROM ancestors WHERE ancestors.id = @root_id::uuid
 ) AS is_descendant;
-
--- name: LockProjectFolders :exec
--- Serialises tree changes within one project, so two concurrent moves cannot
--- each pass the cycle check and together create a cycle. NO KEY UPDATE does
--- not block the key-share locks taken by inserts referencing the project.
-SELECT id
-FROM projects
-WHERE id = $1
-FOR NO KEY UPDATE;

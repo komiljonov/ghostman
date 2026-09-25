@@ -28,6 +28,16 @@ type stubStore struct {
 	environmentErr error
 	variable       db.EnvironmentVariable
 	variableErr    error
+
+	request    db.Request
+	requestErr error
+}
+
+func (s stubStore) GetRequestByID(_ context.Context, _ uuid.UUID) (db.Request, error) {
+	if s.requestErr != nil {
+		return db.Request{}, s.requestErr
+	}
+	return s.request, nil
 }
 
 func (s stubStore) GetEnvironmentByID(_ context.Context, _ uuid.UUID) (db.Environment, error) {
@@ -396,6 +406,44 @@ func TestRequireEnvironmentAndVariableAccess(t *testing.T) {
 			}
 			if errors.Is(err, ErrNoEnvironmentAccess) || errors.Is(err, ErrNoProjectAccess) {
 				t.Error("error reveals a parent, and so that the variable exists")
+			}
+		})
+	}
+}
+
+func TestRequireRequestAccess(t *testing.T) {
+	projectID, requestID, userID := uuid.New(), uuid.New(), uuid.New()
+	request := db.Request{ID: requestID, ProjectID: projectID}
+	boom := errors.New("connection reset")
+
+	tests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing request", store: stubStore{requestErr: pgx.ErrNoRows}, wantErr: ErrNoRequestAccess},
+		{name: "project out of reach", store: stubStore{request: request, projectErr: pgx.ErrNoRows}, wantErr: ErrNoRequestAccess},
+		{name: "database failure", store: stubStore{requestErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{request: request, project: db.GetProjectForUserRow{Project: db.Project{ID: projectID}}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireRequestAccess(t.Context(), requestID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireRequestAccess() error: %v", err)
+				}
+				if got.ID != requestID {
+					t.Errorf("request id = %s, want %s", got.ID, requestID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireRequestAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoProjectAccess) {
+				t.Error("error reveals the project, and so that the request exists")
 			}
 		})
 	}

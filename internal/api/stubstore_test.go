@@ -210,3 +210,31 @@ func (unimplementedTeamStore) ListVariablesByEnvironment(_ context.Context, _ uu
 func (unimplementedTeamStore) ReorderVariables(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) GetRequestByID(_ context.Context, _ uuid.UUID) (db.Request, error) {
+	return db.Request{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListRequestsByProject(_ context.Context, _ uuid.UUID) ([]db.ListRequestsByProjectRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateRequestBasics(_ context.Context, _ db.UpdateRequestBasicsParams) (db.Request, error) {
+	return db.Request{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteRequest(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) CreateRequestInProject(_ context.Context, _ db.CreateRequestParams) (db.Request, error) {
+	return db.Request{}, errStubbed
+}
+
+func (unimplementedTeamStore) MoveRequest(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ *int32) (db.Request, error) {
+	return db.Request{}, errStubbed
+}
+
+func (unimplementedTeamStore) ReorderRequests(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}

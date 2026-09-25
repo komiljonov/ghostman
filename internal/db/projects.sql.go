@@ -258,6 +258,23 @@ func (q *Queries) ListTeamProjectIDs(ctx context.Context, teamID uuid.UUID) ([]u
 	return items, nil
 }
 
+const lockProject = `-- name: LockProject :exec
+SELECT id
+FROM projects
+WHERE id = $1
+FOR NO KEY UPDATE
+`
+
+// Serialises tree changes within one project (folder moves and reorders,
+// request moves and reorders), so concurrent writers cannot interleave a
+// check with a write: two folder moves could otherwise each pass the cycle
+// check and together create a cycle. NO KEY UPDATE does not block the
+// key-share locks taken by inserts referencing the project.
+func (q *Queries) LockProject(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockProject, id)
+	return err
+}
+
 const updateProjectName = `-- name: UpdateProjectName :one
 UPDATE projects
 SET name = $2
