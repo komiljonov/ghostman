@@ -2,8 +2,6 @@ package api
 
 import (
 	"net/http"
-
-	"github.com/komiljonov/ghostman/internal/db"
 )
 
 // handleDeleteTeamMember covers both removal and leaving, which are the same
@@ -63,10 +61,9 @@ func (a *api) handleDeleteTeamMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	removed, err := a.store.DeleteTeamMember(r.Context(), db.DeleteTeamMemberParams{
-		TeamID: teamID,
-		UserID: targetID,
-	})
+	// Also revokes the member's explicit project grants in this team, in the
+	// same transaction.
+	removed, err := a.store.RemoveTeamMember(r.Context(), teamID, targetID)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
@@ -76,9 +73,6 @@ func (a *api) handleDeleteTeamMember(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageMemberNotFound)
 		return
 	}
-
-	// TODO(step 4): drop this member's project_access rows once that table
-	// exists, so leaving a team also revokes per-project access.
 
 	w.WriteHeader(http.StatusNoContent)
 }

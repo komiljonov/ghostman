@@ -47,7 +47,7 @@ func (unimplementedTeamStore) ListTeamMembers(_ context.Context, _ uuid.UUID) ([
 	return nil, errStubbed
 }
 
-func (unimplementedTeamStore) DeleteTeamMember(_ context.Context, _ db.DeleteTeamMemberParams) (int64, error) {
+func (unimplementedTeamStore) RemoveTeamMember(_ context.Context, _, _ uuid.UUID) (int64, error) {
 	return 0, errStubbed
 }
 

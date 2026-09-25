@@ -29,8 +29,9 @@ type AuthStore interface {
 	DeleteSession(ctx context.Context, tokenHash []byte) error
 }
 
-// TeamStore covers team CRUD. CreateTeamWithOwner is transactional, which is
-// why this interface is satisfied by *db.Store and not by *db.Queries.
+// TeamStore covers team CRUD. CreateTeamWithOwner and RemoveTeamMember are
+// transactional, which is why this interface is satisfied by *db.Store and not
+// by *db.Queries.
 type TeamStore interface {
 	CreateTeamWithOwner(ctx context.Context, name string, ownerID uuid.UUID) (db.Team, error)
 	GetTeamByID(ctx context.Context, id uuid.UUID) (db.Team, error)
@@ -40,7 +41,7 @@ type TeamStore interface {
 	GetTeamMember(ctx context.Context, arg db.GetTeamMemberParams) (db.TeamMember, error)
 	ListTeamsForUser(ctx context.Context, userID uuid.UUID) ([]db.ListTeamsForUserRow, error)
 	ListTeamMembers(ctx context.Context, teamID uuid.UUID) ([]db.ListTeamMembersRow, error)
-	DeleteTeamMember(ctx context.Context, arg db.DeleteTeamMemberParams) (int64, error)
+	RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) (int64, error)
 }
 
 // InvitationStore covers invitations and joining a team through one.
