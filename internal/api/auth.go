@@ -69,7 +69,7 @@ func newUserResponse(user db.User) userResponse {
 func (a *api) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -131,7 +131,7 @@ func (a *api) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (a *api) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 

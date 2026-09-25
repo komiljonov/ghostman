@@ -63,7 +63,7 @@ func (a *api) handleSetProjectAccess(w http.ResponseWriter, r *http.Request) {
 
 	var req projectAccessRequest
 	if err = readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -158,7 +158,7 @@ func (a *api) handleSetMemberAccess(w http.ResponseWriter, r *http.Request) {
 
 	var req memberAccessRequest
 	if err = readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 

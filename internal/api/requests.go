@@ -40,15 +40,16 @@ type requestCreateRequest struct {
 
 // requestUpdateRequest is a partial update: a missing (or null) field keeps
 // its current value. None of these fields can be null in the table, so null
-// has no other meaning to carry. headers and query_params, when present,
-// replace the whole array; they are decoded raw so the row validator can
-// report errors by row index.
+// has no other meaning to carry. headers, query_params and body, when present,
+// replace the whole value; they are decoded raw so their validators can report
+// errors by path.
 type requestUpdateRequest struct {
 	Name        *string         `json:"name"`
 	Method      *string         `json:"method"`
 	URL         *string         `json:"url"`
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
+	Body        json.RawMessage `json:"body"`
 }
 
 type requestMoveRequest struct {
@@ -131,7 +132,7 @@ func (a *api) handleCreateRequest(w http.ResponseWriter, r *http.Request) {
 
 	var req requestCreateRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -240,7 +241,7 @@ func (a *api) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateRequest applies a partial update to a request's name, method,
-// url, headers and query parameters, and returns the full request.
+// url, headers, query parameters and body, and returns the full request.
 func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	user, ok := a.authenticatedUser(w, r)
 	if !ok {
@@ -259,7 +260,7 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 
 	var req requestUpdateRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -275,9 +276,15 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.Method == nil && req.URL == nil && params.Headers == nil && params.QueryParams == nil {
+	if params.Body, err = parseRequestBody(req.Body); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+
+	if req.Name == nil && req.Method == nil && req.URL == nil &&
+		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers or query_params")
+			"provide at least one of name, method, url, headers, query_params or body")
 		return
 	}
 
@@ -334,7 +341,7 @@ func (a *api) handleMoveRequest(w http.ResponseWriter, r *http.Request) {
 
 	var req requestMoveRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -376,7 +383,7 @@ func (a *api) handleReorderRequests(w http.ResponseWriter, r *http.Request) {
 	// The scope is in the body, so it has to be read before the access check.
 	var req requestOrderRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 

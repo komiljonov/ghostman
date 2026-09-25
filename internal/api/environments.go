@@ -259,7 +259,7 @@ func (a *api) handleReorderEnvironments(w http.ResponseWriter, r *http.Request) 
 	// The scope is in the body, so it has to be read before the access check.
 	var req environmentOrderRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -315,7 +315,7 @@ func (a *api) handleCreateVariable(w http.ResponseWriter, r *http.Request) {
 
 	var req variableCreateRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -412,7 +412,7 @@ func (a *api) handleUpdateVariable(w http.ResponseWriter, r *http.Request) {
 
 	var req variableUpdateRequest
 	if err = readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -503,7 +503,7 @@ func (a *api) handleReorderVariables(w http.ResponseWriter, r *http.Request) {
 
 	var req variableOrderRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -543,7 +543,7 @@ func (a *api) handleReorderVariables(w http.ResponseWriter, r *http.Request) {
 func (a *api) readEnvironmentName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var req environmentRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return "", false
 	}
 

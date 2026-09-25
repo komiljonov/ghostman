@@ -27,14 +27,15 @@ WHERE id = $1;
 -- name: UpdateRequest :one
 -- A partial update merged in SQL, so it is atomic against concurrent edits:
 -- NULL keeps the current value. An empty url is a real value, not "keep".
--- headers and query_params replace the whole array; the caller has already
--- validated and normalised them.
+-- headers, query_params and body each replace the whole value; the caller has
+-- already validated and normalised them.
 UPDATE requests
 SET name = COALESCE(sqlc.narg(name), name),
     method = COALESCE(sqlc.narg(method), method),
     url = COALESCE(sqlc.narg(url), url),
     headers = COALESCE(sqlc.narg(headers)::jsonb, headers),
     query_params = COALESCE(sqlc.narg(query_params)::jsonb, query_params),
+    body = COALESCE(sqlc.narg(body)::jsonb, body),
     updated_at = now()
 WHERE id = @id
 RETURNING *;

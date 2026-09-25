@@ -107,7 +107,7 @@ func parseKeyValueRow(raw json.RawMessage, path string) (keyValueRow, error) {
 	}
 	// null would otherwise decode silently as false.
 	if string(enabled) == "null" || json.Unmarshal(enabled, &row.Enabled) != nil {
-		return keyValueRow{}, fmt.Errorf("%s.enabled must be true or false", path)
+		return keyValueRow{}, fmt.Errorf("%s.enabled must be a boolean", path)
 	}
 
 	return row, nil
