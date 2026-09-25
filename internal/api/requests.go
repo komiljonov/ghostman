@@ -40,11 +40,15 @@ type requestCreateRequest struct {
 
 // requestUpdateRequest is a partial update: a missing (or null) field keeps
 // its current value. None of these fields can be null in the table, so null
-// has no other meaning to carry.
+// has no other meaning to carry. headers and query_params, when present,
+// replace the whole array; they are decoded raw so the row validator can
+// report errors by row index.
 type requestUpdateRequest struct {
-	Name   *string `json:"name"`
-	Method *string `json:"method"`
-	URL    *string `json:"url"`
+	Name        *string         `json:"name"`
+	Method      *string         `json:"method"`
+	URL         *string         `json:"url"`
+	Headers     json.RawMessage `json:"headers"`
+	QueryParams json.RawMessage `json:"query_params"`
 }
 
 type requestMoveRequest struct {
@@ -74,14 +78,23 @@ type requestResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// requestDetailResponse is the full request, returned only by
-// GET /requests/{id}.
+// requestDetailResponse is the full request, returned by GET and PATCH on
+// /requests/{id}. The list leaves these columns out.
 type requestDetailResponse struct {
 	requestResponse
 
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
 	Body        json.RawMessage `json:"body"`
+}
+
+func newRequestDetailResponse(request db.Request) requestDetailResponse {
+	return requestDetailResponse{
+		requestResponse: newRequestResponse(request),
+		Headers:         request.Headers,
+		QueryParams:     request.QueryParams,
+		Body:            request.Body,
+	}
 }
 
 func newRequestResponse(request db.Request) requestResponse {
@@ -223,16 +236,11 @@ func (a *api) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeJSON(w, r, http.StatusOK, requestDetailResponse{
-		requestResponse: newRequestResponse(request),
-		Headers:         request.Headers,
-		QueryParams:     request.QueryParams,
-		Body:            request.Body,
-	})
+	a.writeJSON(w, r, http.StatusOK, newRequestDetailResponse(request))
 }
 
-// handleUpdateRequest applies a partial update to a request's name, method
-// and url.
+// handleUpdateRequest applies a partial update to a request's name, method,
+// url, headers and query parameters, and returns the full request.
 func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	user, ok := a.authenticatedUser(w, r)
 	if !ok {
@@ -255,43 +263,54 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.Method == nil && req.URL == nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, "provide at least one of name, method or url")
+	params := db.UpdateRequestParams{ID: requestID, Method: req.Method, Url: req.URL}
+
+	var err error
+	if params.Headers, err = parseKeyValueRows(req.Headers, "headers"); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	if params.QueryParams, err = parseKeyValueRows(req.QueryParams, "query_params"); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}
 
-	params := db.UpdateRequestBasicsParams{ID: requestID, Method: req.Method, Url: req.URL}
+	if req.Name == nil && req.Method == nil && req.URL == nil && params.Headers == nil && params.QueryParams == nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
+			"provide at least one of name, method, url, headers or query_params")
+		return
+	}
 
 	if req.Name != nil {
-		name, err := validateName(*req.Name, minRequestNameLength, maxRequestNameLength)
-		if err != nil {
-			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		name, nameErr := validateName(*req.Name, minRequestNameLength, maxRequestNameLength)
+		if nameErr != nil {
+			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, nameErr.Error())
 			return
 		}
 		params.Name = &name
 	}
 
 	if req.Method != nil {
-		if err := validateRequestMethod(*req.Method); err != nil {
+		if err = validateRequestMethod(*req.Method); err != nil {
 			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 			return
 		}
 	}
 
 	if req.URL != nil {
-		if err := validateRequestURL(*req.URL); err != nil {
+		if err = validateRequestURL(*req.URL); err != nil {
 			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 			return
 		}
 	}
 
-	request, err := a.store.UpdateRequestBasics(r.Context(), params)
+	request, err := a.store.UpdateRequest(r.Context(), params)
 	if err != nil {
 		a.writeRequestError(w, r, err)
 		return
 	}
 
-	a.writeJSON(w, r, http.StatusOK, newRequestResponse(request))
+	a.writeJSON(w, r, http.StatusOK, newRequestDetailResponse(request))
 }
 
 // handleMoveRequest puts a request into a folder of the same project, or at
