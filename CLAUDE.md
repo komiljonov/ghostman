@@ -23,7 +23,7 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
-- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null)
 
 ## Domain model
 Designed so far: users + sessions (step 1), teams + team_members (step 2),

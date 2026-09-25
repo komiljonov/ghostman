@@ -16,6 +16,7 @@ type Store interface {
 	TeamStore
 	InvitationStore
 	ProjectStore
+	FolderStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -77,6 +78,19 @@ type ProjectStore interface {
 
 	ReplaceProjectAccess(ctx context.Context, projectID uuid.UUID, userIDs []uuid.UUID) error
 	SetMemberProjectAccess(ctx context.Context, teamID, userID uuid.UUID, allProjects bool, projectIDs []uuid.UUID) (db.TeamMember, error)
+}
+
+// FolderStore covers the folder tree of a project. CreateFolderInProject checks
+// the parent; MoveFolder and ReorderFolders are transactional.
+type FolderStore interface {
+	GetFolderByID(ctx context.Context, id uuid.UUID) (db.Folder, error)
+	ListFoldersByProject(ctx context.Context, projectID uuid.UUID) ([]db.Folder, error)
+	UpdateFolderName(ctx context.Context, arg db.UpdateFolderNameParams) (db.Folder, error)
+	DeleteFolder(ctx context.Context, id uuid.UUID) error
+
+	CreateFolderInProject(ctx context.Context, arg db.CreateFolderParams) (db.Folder, error)
+	MoveFolder(ctx context.Context, id uuid.UUID, parentID *uuid.UUID, sortOrder *int32) (db.Folder, error)
+	ReorderFolders(ctx context.Context, projectID uuid.UUID, parentID *uuid.UUID, folderIDs []uuid.UUID, checkSiblings func([]uuid.UUID) error) error
 }
 
 // The real store must satisfy Store.

@@ -64,6 +64,10 @@ const (
 	messageNotProjectOwner  = "only the team owner or the project owner can do that"
 	messageOwnerAccessFixed = "the team owner always has access to every project"
 
+	// messageFolderNotFound also covers a folder in a project the caller
+	// cannot reach, so folder ids are not observable either.
+	messageFolderNotFound = "folder not found"
+
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"
 

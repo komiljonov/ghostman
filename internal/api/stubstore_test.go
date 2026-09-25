@@ -134,3 +134,31 @@ func (unimplementedTeamStore) ReplaceProjectAccess(_ context.Context, _ uuid.UUI
 func (unimplementedTeamStore) SetMemberProjectAccess(_ context.Context, _, _ uuid.UUID, _ bool, _ []uuid.UUID) (db.TeamMember, error) {
 	return db.TeamMember{}, errStubbed
 }
+
+func (unimplementedTeamStore) GetFolderByID(_ context.Context, _ uuid.UUID) (db.Folder, error) {
+	return db.Folder{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListFoldersByProject(_ context.Context, _ uuid.UUID) ([]db.Folder, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateFolderName(_ context.Context, _ db.UpdateFolderNameParams) (db.Folder, error) {
+	return db.Folder{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteFolder(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) CreateFolderInProject(_ context.Context, _ db.CreateFolderParams) (db.Folder, error) {
+	return db.Folder{}, errStubbed
+}
+
+func (unimplementedTeamStore) MoveFolder(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ *int32) (db.Folder, error) {
+	return db.Folder{}, errStubbed
+}
+
+func (unimplementedTeamStore) ReorderFolders(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}

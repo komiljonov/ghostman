@@ -32,6 +32,10 @@ var (
 	// ErrNotProjectManager means the user can see the project but may not
 	// change it. This is a 403 — they already know it exists.
 	ErrNotProjectManager = errors.New("authz: user cannot manage the project")
+
+	// ErrNoFolderAccess means the folder does not exist or its project is out
+	// of the user's reach. Both are answered with 404 and must look the same.
+	ErrNoFolderAccess = errors.New("authz: user cannot access the folder")
 )
 
 // Store is the query subset these checks need.
@@ -39,6 +43,7 @@ type Store interface {
 	GetTeamByID(ctx context.Context, id uuid.UUID) (db.Team, error)
 	GetTeamMember(ctx context.Context, arg db.GetTeamMemberParams) (db.TeamMember, error)
 	GetProjectForUser(ctx context.Context, arg db.GetProjectForUserParams) (db.GetProjectForUserRow, error)
+	GetFolderByID(ctx context.Context, id uuid.UUID) (db.Folder, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -143,4 +148,30 @@ func (c *Checker) RequireProjectManage(ctx context.Context, projectID, userID uu
 	}
 
 	return access.Project, nil
+}
+
+// RequireFolderAccess returns the folder when the user may reach its project.
+// Anyone with project access may work with its folders; there is no separate
+// management right.
+//
+// A missing folder and one in an unreachable project both come back as
+// ErrNoFolderAccess. Reporting the latter as ErrNoProjectAccess instead would
+// tell the caller that the folder id exists.
+func (c *Checker) RequireFolderAccess(ctx context.Context, folderID, userID uuid.UUID) (db.Folder, error) {
+	folder, err := c.store.GetFolderByID(ctx, folderID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Folder{}, ErrNoFolderAccess
+		}
+		return db.Folder{}, fmt.Errorf("looking up folder: %w", err)
+	}
+
+	if _, err := c.RequireProjectAccess(ctx, folder.ProjectID, userID); err != nil {
+		if errors.Is(err, ErrNoProjectAccess) {
+			return db.Folder{}, ErrNoFolderAccess
+		}
+		return db.Folder{}, err
+	}
+
+	return folder, nil
 }
