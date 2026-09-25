@@ -111,8 +111,8 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/variables/order` | bearer | Project access. `{environment_id, variable_ids}` must list every variable of the environment. `204`. |
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
-| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body` (read-only for now). |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?}` → `200`; partial update. |
+| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body` (`body` read-only for now). |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?}` → `200` with the full request; partial update, and a present array replaces the whole list. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -292,12 +292,30 @@ exactly like a missing id.
 - The url is opaque to the server: it may be empty and may contain
   `{{variable}}` references. Only its length is limited (8192 characters).
   `method` is one of `GET POST PUT PATCH DELETE HEAD OPTIONS`, in upper case.
-- `PATCH` is a partial update of name, method and url; `updated_at` moves on
+- `PATCH` is a partial update of name, method, url, headers and query
+  parameters, and returns the full request; `updated_at` moves on
   every update and move.
 - Moves and reorders run under the same per-project lock as folder moves.
 
-Headers, query parameters and body are stored already but are only readable,
-through `GET /requests/{id}`; editing them comes in a later step.
+**Headers and query parameters** share one shape, an ordered array of rows:
+
+```json
+[{ "key": "Authorization", "value": "Bearer {{token}}", "enabled": true }]
+```
+
+- Set with `PATCH /requests/{id}`: a present `headers` or `query_params`
+  replaces that whole array (`[]` clears it); absent or `null` leaves it alone.
+  A new request always starts with both empty.
+- At most 100 rows. Each row has exactly `key` (non-empty, at most 200
+  characters), `value` (may be empty, at most 8192) and `enabled` (boolean);
+  anything else is `400`, with a message naming the row, e.g.
+  `headers[3].key is required`.
+- Duplicate keys are allowed, since HTTP permits repeated headers and query
+  parameters. Order is kept, and keys and values are stored exactly as sent:
+  what you PATCH is what you GET.
+
+The body is stored already but is only readable, through `GET /requests/{id}`;
+editing it comes in a later step.
 
 ## Testing
 
@@ -394,8 +412,8 @@ full documented list.
 
 ## Not implemented yet
 
-Sync and every other product table. Requests have no editable headers, query
-params or body yet, no per-request auth, history or duplication, and are never
+Sync and every other product table. Requests have no editable body yet, no
+per-request auth, history or duplication, and are never
 executed by the server (sending them is the client's job). Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.

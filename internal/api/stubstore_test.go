@@ -219,7 +219,7 @@ func (unimplementedTeamStore) ListRequestsByProject(_ context.Context, _ uuid.UU
 	return nil, errStubbed
 }
 
-func (unimplementedTeamStore) UpdateRequestBasics(_ context.Context, _ db.UpdateRequestBasicsParams) (db.Request, error) {
+func (unimplementedTeamStore) UpdateRequest(_ context.Context, _ db.UpdateRequestParams) (db.Request, error) {
 	return db.Request{}, errStubbed
 }
 

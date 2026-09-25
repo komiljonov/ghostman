@@ -31,8 +31,9 @@ team_invitations (step 3), projects + project_access (step 4),
 folders (step 5: a tree per project via nullable parent_id, NULL = root),
 environments + environment_variables (step 6),
 requests (step 7: leaves of the folder tree via nullable folder_id, NULL = root).
-Step 7a exposes name/method/url/folder/order only; headers, query_params and
-body columns already exist for 7b/7c and are read-only via GET /requests/{id}.
+7a exposes name/method/url/folder/order; 7b makes headers and query_params
+writable via PATCH (one shared {key, value, enabled} row validator). body exists
+for 7c and is read-only via GET /requests/{id}.
 Everything else (sync) is NOT designed yet —
 do not invent product tables without discussion.
 sort_order is 0-based for new code (environments, variables, requests). Older

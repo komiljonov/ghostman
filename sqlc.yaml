@@ -36,3 +36,8 @@ sql:
           # response as-is.
           - db_type: "jsonb"
             go_type: "encoding/json.RawMessage"
+          # A nil RawMessage is sent as NULL, which the partial updates read as
+          # "keep the current value".
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+            nullable: true

@@ -118,7 +118,7 @@ type EnvironmentStore interface {
 type RequestStore interface {
 	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
 	ListRequestsByProject(ctx context.Context, projectID uuid.UUID) ([]db.ListRequestsByProjectRow, error)
-	UpdateRequestBasics(ctx context.Context, arg db.UpdateRequestBasicsParams) (db.Request, error)
+	UpdateRequest(ctx context.Context, arg db.UpdateRequestParams) (db.Request, error)
 	DeleteRequest(ctx context.Context, id uuid.UUID) error
 
 	CreateRequestInProject(ctx context.Context, arg db.CreateRequestParams) (db.Request, error)

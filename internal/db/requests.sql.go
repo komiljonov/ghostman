@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -211,30 +212,38 @@ func (q *Queries) ListSiblingRequestIDs(ctx context.Context, arg ListSiblingRequ
 	return items, nil
 }
 
-const updateRequestBasics = `-- name: UpdateRequestBasics :one
+const updateRequest = `-- name: UpdateRequest :one
 UPDATE requests
 SET name = COALESCE($1, name),
     method = COALESCE($2, method),
     url = COALESCE($3, url),
+    headers = COALESCE($4::jsonb, headers),
+    query_params = COALESCE($5::jsonb, query_params),
     updated_at = now()
-WHERE id = $4
+WHERE id = $6
 RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
 `
 
-type UpdateRequestBasicsParams struct {
-	Name   *string   `json:"name"`
-	Method *string   `json:"method"`
-	Url    *string   `json:"url"`
-	ID     uuid.UUID `json:"id"`
+type UpdateRequestParams struct {
+	Name        *string         `json:"name"`
+	Method      *string         `json:"method"`
+	Url         *string         `json:"url"`
+	Headers     json.RawMessage `json:"headers"`
+	QueryParams json.RawMessage `json:"query_params"`
+	ID          uuid.UUID       `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
 // NULL keeps the current value. An empty url is a real value, not "keep".
-func (q *Queries) UpdateRequestBasics(ctx context.Context, arg UpdateRequestBasicsParams) (Request, error) {
-	row := q.db.QueryRow(ctx, updateRequestBasics,
+// headers and query_params replace the whole array; the caller has already
+// validated and normalised them.
+func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (Request, error) {
+	row := q.db.QueryRow(ctx, updateRequest,
 		arg.Name,
 		arg.Method,
 		arg.Url,
+		arg.Headers,
+		arg.QueryParams,
 		arg.ID,
 	)
 	var i Request
