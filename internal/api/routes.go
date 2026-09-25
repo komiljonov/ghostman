@@ -100,6 +100,7 @@ func (a *api) routes() http.Handler {
 		a.recoverPanics,
 		a.withCORS,
 		a.logRequests,
+		a.limitRequestBody,
 	)
 }
 

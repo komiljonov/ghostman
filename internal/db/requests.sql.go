@@ -219,8 +219,9 @@ SET name = COALESCE($1, name),
     url = COALESCE($3, url),
     headers = COALESCE($4::jsonb, headers),
     query_params = COALESCE($5::jsonb, query_params),
+    body = COALESCE($6::jsonb, body),
     updated_at = now()
-WHERE id = $6
+WHERE id = $7
 RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
 `
 
@@ -230,13 +231,14 @@ type UpdateRequestParams struct {
 	Url         *string         `json:"url"`
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
+	Body        json.RawMessage `json:"body"`
 	ID          uuid.UUID       `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
 // NULL keeps the current value. An empty url is a real value, not "keep".
-// headers and query_params replace the whole array; the caller has already
-// validated and normalised them.
+// headers, query_params and body each replace the whole value; the caller has
+// already validated and normalised them.
 func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (Request, error) {
 	row := q.db.QueryRow(ctx, updateRequest,
 		arg.Name,
@@ -244,6 +246,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.Url,
 		arg.Headers,
 		arg.QueryParams,
+		arg.Body,
 		arg.ID,
 	)
 	var i Request

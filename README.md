@@ -111,8 +111,8 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/variables/order` | bearer | Project access. `{environment_id, variable_ids}` must list every variable of the environment. `204`. |
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
-| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body` (`body` read-only for now). |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?}` → `200` with the full request; partial update, and a present array replaces the whole list. |
+| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -124,7 +124,11 @@ Errors always use a single envelope:
 ```
 
 Codes in use: `bad_request`, `unauthorized`, `forbidden`, `not_found`,
-`conflict`, `internal_error`, `service_unavailable`.
+`conflict`, `payload_too_large`, `internal_error`, `service_unavailable`.
+
+Request bodies are limited to 2 MiB. A larger one is refused with `413`
+(`payload_too_large`), before it is read when the client declares its
+`Content-Length` and as soon as the limit is crossed when it does not.
 
 URL shape, never nested more than one level deep:
 
@@ -314,8 +318,26 @@ exactly like a missing id.
   parameters. Order is kept, and keys and values are stored exactly as sent:
   what you PATCH is what you GET.
 
-The body is stored already but is only readable, through `GET /requests/{id}`;
-editing it comes in a later step.
+**The body** is a tagged union on `type`, set with `PATCH /requests/{id}`:
+
+```json
+{ "type": "none" }
+{ "type": "raw", "content_type": "application/json", "content": "{\"id\": {{id}}}" }
+{ "type": "form", "fields": [{ "key": "user", "value": "{{user}}", "enabled": true }] }
+```
+
+- Each variant has exactly those fields; anything missing or extra is `400`,
+  with a message naming the path (`body.content_type is required`,
+  `body.fields[2].enabled must be a boolean`).
+- A present `body` replaces the whole body, so switching type leaves nothing of
+  the old one behind; absent or `null` leaves it alone. A new request starts as
+  `{"type": "none"}`.
+- `raw`: `content_type` is any non-empty string up to 200 characters;
+  `content` is any string up to 1 MiB (counted in bytes), possibly empty. The
+  content is **not** checked against its content type — a half-typed JSON body
+  is the user's business, and warning about it is the client's.
+- `form`: `fields` follows exactly the header/query parameter row rules above.
+- File and multipart bodies are deliberately not synced.
 
 ## Testing
 
@@ -412,8 +434,8 @@ full documented list.
 
 ## Not implemented yet
 
-Sync and every other product table. Requests have no editable body yet, no
-per-request auth, history or duplication, and are never
+Sync and every other product table. Requests have no file or multipart bodies,
+no per-request auth, history or duplication, and are never
 executed by the server (sending them is the client's job). Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.

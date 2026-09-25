@@ -238,7 +238,7 @@ func (a *api) handleReorderProjects(w http.ResponseWriter, r *http.Request) {
 
 	var req projectOrderRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (a *api) handleReorderProjects(w http.ResponseWriter, r *http.Request) {
 func (a *api) readProjectName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var req projectRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return "", false
 	}
 

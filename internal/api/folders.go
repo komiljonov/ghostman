@@ -106,7 +106,7 @@ func (a *api) handleCreateFolder(w http.ResponseWriter, r *http.Request) {
 
 	var req folderCreateRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -192,7 +192,7 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 
 	var req folderRenameRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -235,7 +235,7 @@ func (a *api) handleMoveFolder(w http.ResponseWriter, r *http.Request) {
 
 	var req folderMoveRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (a *api) handleReorderFolders(w http.ResponseWriter, r *http.Request) {
 	// The scope is in the body, so it has to be read before the access check.
 	var req folderOrderRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return
 	}
 

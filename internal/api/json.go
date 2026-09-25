@@ -10,8 +10,10 @@ import (
 	"strings"
 )
 
-// maxRequestBody caps how much JSON the server will read from a single request.
-const maxRequestBody = 1 << 20 // 1 MiB
+// maxRequestBody caps how much the server will read from a single request. A
+// raw request body may hold up to 1 MiB of content, so the envelope around it
+// needs headroom beyond that.
+const maxRequestBody = 2 << 20 // 2 MiB
 
 // errorEnvelope is the single shape every error response takes:
 //
@@ -33,6 +35,7 @@ const (
 	codeForbidden    = "forbidden"
 	codeNotFound     = "not_found"
 	codeConflict     = "conflict"
+	codeTooLarge     = "payload_too_large"
 	codeInternal     = "internal_error"
 	codeUnavailable  = "service_unavailable"
 
@@ -129,9 +132,30 @@ func (a *api) serverError(w http.ResponseWriter, r *http.Request, err error) {
 	a.writeError(w, r, http.StatusInternalServerError, codeInternal, messageInternal)
 }
 
+// bodyTooLargeError is what readJSON reports for a body over the limit, so
+// that it can be answered with 413 rather than 400.
+type bodyTooLargeError struct{ limit int64 }
+
+func (e bodyTooLargeError) Error() string {
+	return fmt.Sprintf("body must not be larger than %d bytes", e.limit)
+}
+
+// writeBodyError answers a readJSON failure: 413 for an oversized body, 400
+// for anything else.
+func (a *api) writeBodyError(w http.ResponseWriter, r *http.Request, err error) {
+	var tooLarge bodyTooLargeError
+	if errors.As(err, &tooLarge) {
+		a.writeError(w, r, http.StatusRequestEntityTooLarge, codeTooLarge, tooLarge.Error())
+		return
+	}
+
+	a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+}
+
 // readJSON decodes a single JSON object from the request body into dst. It
 // rejects oversized bodies, unknown fields and trailing data, and turns decoder
-// errors into messages that are safe to show a client.
+// errors into messages that are safe to show a client. Callers answer its
+// error with writeBodyError.
 func readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 
@@ -171,7 +195,7 @@ func decodeError(err error) error {
 		return errors.New("body must not be empty")
 
 	case errors.As(err, &maxBytesErr):
-		return fmt.Errorf("body must not be larger than %d bytes", maxBytesErr.Limit)
+		return bodyTooLargeError{limit: maxBytesErr.Limit}
 
 	case strings.HasPrefix(err.Error(), "json: unknown field "):
 		field := strings.TrimPrefix(err.Error(), "json: unknown field ")

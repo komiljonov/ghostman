@@ -224,7 +224,7 @@ func (a *api) writeTeamDetail(w http.ResponseWriter, r *http.Request, team db.Te
 func (a *api) readTeamName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var req teamRequest
 	if err := readJSON(w, r, &req); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		a.writeBodyError(w, r, err)
 		return "", false
 	}
 

@@ -45,6 +45,23 @@ func (s *statusRecorder) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// limitRequestBody caps every request body at maxRequestBody. A request that
+// declares a larger Content-Length is refused with 413 before any handler
+// runs; one that does not declare its length is cut off at the limit, and
+// readJSON turns that into the same 413.
+func (a *api) limitRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > maxRequestBody {
+			a.writeError(w, r, http.StatusRequestEntityTooLarge, codeTooLarge,
+				bodyTooLargeError{limit: maxRequestBody}.Error())
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		next.ServeHTTP(w, r)
+	})
+}
+
 // logRequests emits one structured log line per request, at debug level for
 // successful requests and warn/error for 4xx/5xx.
 func (a *api) logRequests(next http.Handler) http.Handler {
