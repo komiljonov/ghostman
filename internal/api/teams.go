@@ -34,6 +34,7 @@ type teamResponse struct {
 type teamSummaryResponse struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
+	OwnerID     string `json:"owner_id"`
 	MemberCount int64  `json:"member_count"`
 	IsOwner     bool   `json:"is_owner"`
 }
@@ -46,10 +47,12 @@ type teamMemberResponse struct {
 	AllProjects bool   `json:"all_projects"`
 }
 
-// teamDetailResponse is what GET and PATCH on a single team return.
+// teamDetailResponse is what GET and PATCH on a single team return. owner_id
+// lets a client mark the owner in the members list.
 type teamDetailResponse struct {
 	ID        string               `json:"id"`
 	Name      string               `json:"name"`
+	OwnerID   string               `json:"owner_id"`
 	CreatedAt time.Time            `json:"created_at"`
 	IsOwner   bool                 `json:"is_owner"`
 	Members   []teamMemberResponse `json:"members"`
@@ -99,6 +102,7 @@ func (a *api) handleListTeams(w http.ResponseWriter, r *http.Request) {
 		teams = append(teams, teamSummaryResponse{
 			ID:          row.Team.ID.String(),
 			Name:        row.Team.Name,
+			OwnerID:     row.Team.OwnerID.String(),
 			MemberCount: row.MemberCount,
 			IsOwner:     row.Team.OwnerID == user.ID,
 		})
@@ -213,6 +217,7 @@ func (a *api) writeTeamDetail(w http.ResponseWriter, r *http.Request, team db.Te
 	a.writeJSON(w, r, http.StatusOK, teamDetailResponse{
 		ID:        team.ID.String(),
 		Name:      team.Name,
+		OwnerID:   team.OwnerID.String(),
 		CreatedAt: team.CreatedAt,
 		IsOwner:   team.OwnerID == userID,
 		Members:   members,

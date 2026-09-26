@@ -178,6 +178,9 @@ func TestListTeams(t *testing.T) {
 	if !got.IsOwner {
 		t.Error("is_owner = false, want true")
 	}
+	if got.OwnerID != owner.User.ID {
+		t.Errorf("owner_id = %s, want %s", got.OwnerID, owner.User.ID)
+	}
 
 	// Someone else's team must not appear, and an empty list is [] not null.
 	outsiderRec := do(t, f.handler, http.MethodGet, "/api/v1/teams", "", outsider.Token)
@@ -247,6 +250,10 @@ func TestGetTeamReturnsMembers(t *testing.T) {
 	if detail.IsOwner {
 		t.Error("is_owner = true for a non-owner member, want false")
 	}
+	// owner_id names the owner whoever asks, so a member can mark them.
+	if detail.OwnerID != owner.User.ID {
+		t.Errorf("owner_id = %s, want the owner %s", detail.OwnerID, owner.User.ID)
+	}
 	if detail.CreatedAt.IsZero() {
 		t.Error("created_at is zero")
 	}
@@ -260,6 +267,11 @@ func TestGetTeamReturnsMembers(t *testing.T) {
 	}
 	if !detail.Members[0].AllProjects {
 		t.Error("all_projects = false, want true")
+	}
+
+	// The owner is findable in the members list by owner_id.
+	if owner := detail.Members[1]; owner.UserID != detail.OwnerID || owner.Email != "detail-owner@example.com" {
+		t.Errorf("members[1] = %+v, want the owner with user_id = owner_id %s", owner, detail.OwnerID)
 	}
 }
 
