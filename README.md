@@ -73,8 +73,8 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/auth/logout`    | bearer | Deletes the session behind the current token. `204`. |
 | GET    | `/api/v1/me`             | bearer | The authenticated user: `{id, email, name}`. |
 | POST   | `/api/v1/teams`          | bearer | `{name}` → `201` with `{id, name}`. Creates the team and the caller's membership in one transaction. |
-| GET    | `/api/v1/teams`          | bearer | The caller's teams: `[{id, name, member_count, is_owner}]`. |
-| GET    | `/api/v1/teams/{id}`     | bearer | Members only. `{id, name, created_at, is_owner, members[]}`. |
+| GET    | `/api/v1/teams`          | bearer | The caller's teams: `[{id, name, owner_id, member_count, is_owner}]`. |
+| GET    | `/api/v1/teams/{id}`     | bearer | Members only. `{id, name, owner_id, created_at, is_owner, members[]}`. |
 | PATCH  | `/api/v1/teams/{id}`     | bearer | Owner only. `{name}` → `200` with the team detail. |
 | DELETE | `/api/v1/teams/{id}`     | bearer | Owner only. `204`; memberships cascade.  |
 | POST   | `/api/v1/teams/{team_id}/invitations` | bearer | Owner only. `{email}` → `201`. `409` if that email is already a member, is your own, or already has a pending invitation. |
@@ -171,6 +171,25 @@ curl http://localhost:8080/api/v1/me -H "Authorization: Bearer $TOKEN"
 A team has exactly one owner (`teams.owner_id`) and a set of members
 (`team_members`). There is no role column: the owner also holds a membership
 row, so member lookups never special-case them.
+
+`GET /teams/{id}` returns the owner's id alongside the members, so a client can
+mark the owner in the list; `is_owner` says whether that is the caller:
+
+```json
+{
+  "id": "5b05cf9c-507f-4c1b-b49a-7c29792aa630",
+  "name": "Ghostman",
+  "owner_id": "42759db6-7e19-4195-9f14-0dda7e8ee3d4",
+  "created_at": "2026-09-25T15:35:23.437808+05:00",
+  "is_owner": false,
+  "members": [
+    { "user_id": "42759db6-7e19-4195-9f14-0dda7e8ee3d4", "email": "ada@example.com", "name": "Ada", "all_projects": true },
+    { "user_id": "135e4dc6-92e6-432a-98e7-d10d0e3c8110", "email": "bob@example.com", "name": "Bob", "all_projects": false }
+  ]
+}
+```
+
+`GET /teams` carries `owner_id` on each entry as well.
 
 Permission checks live in `internal/authz` and handlers call them rather than
 querying permissions inline:
