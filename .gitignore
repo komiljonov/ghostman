@@ -7,6 +7,7 @@
 /server
 /server.exe
 /bin/
+/dist/
 *.exe
 *.exe~
 *.dll

@@ -22,6 +22,14 @@ const (
 	maxHeaderBytes    = 1 << 20 // 1 MiB
 )
 
+// BuildInfo identifies the running binary. The values are stamped into
+// package main at link time by `task build-linux`; a plain `go run` leaves
+// the defaults.
+type BuildInfo struct {
+	Version   string
+	BuildTime string
+}
+
 // api carries the dependencies shared by all handlers. The pool is kept
 // separately from the store because /healthz pings the connection itself.
 type api struct {
@@ -29,16 +37,18 @@ type api struct {
 	pool   *pgxpool.Pool
 	store  Store
 	authz  *authz.Checker
+	build  BuildInfo
 }
 
 // NewServer builds a fully configured *http.Server. The caller owns its
 // lifecycle (ListenAndServe and Shutdown).
-func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store Store) *http.Server {
+func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store Store, build BuildInfo) *http.Server {
 	a := &api{
 		logger: logger,
 		pool:   pool,
 		store:  store,
 		authz:  authz.New(store),
+		build:  build,
 	}
 
 	return &http.Server{

@@ -104,7 +104,14 @@ func (a *api) routes() http.Handler {
 	)
 }
 
-// handleHealthz reports server liveness and database reachability.
+// healthResponse is the /healthz body, with the version of the running binary.
+type healthResponse struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
+}
+
+// handleHealthz reports server liveness, database reachability and the
+// running version.
 func (a *api) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), healthPingTimeout)
 	defer cancel()
@@ -115,7 +122,7 @@ func (a *api) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeJSON(w, r, http.StatusOK, map[string]string{"status": "ok"})
+	a.writeJSON(w, r, http.StatusOK, healthResponse{Status: "ok", Version: a.build.Version})
 }
 
 // handleHello is the placeholder API endpoint used to verify routing end to end.
