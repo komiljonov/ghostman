@@ -53,7 +53,7 @@ Then, in a second terminal:
 
 ```sh
 curl http://localhost:8080/healthz
-# {"status":"ok"}
+# {"status":"ok","version":"dev"}
 
 curl http://localhost:8080/api/v1/hello
 # {"message":"hello from ghostman"}
@@ -66,7 +66,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 
 | Method | Path                     | Auth   | Description                          |
 | ------ | ------------------------ | ------ | ------------------------------------ |
-| GET    | `/healthz`               | public | Liveness plus a database ping. Returns `503` with an error envelope when the database is unreachable. |
+| GET    | `/healthz`               | public | Liveness plus a database ping: `{status, version}`. Returns `503` with an error envelope when the database is unreachable. |
 | GET    | `/api/v1/hello`          | public | Placeholder endpoint.                |
 | POST   | `/api/v1/auth/register`  | public | `{email, password, name}` → `201` with `{user, token}`. `409` if the email is taken, `400` on validation failure. |
 | POST   | `/api/v1/auth/login`     | public | `{email, password}` → `200` with `{user, token}`, `401` otherwise. |
@@ -386,9 +386,25 @@ message rather than failing, so the suite still runs without Docker.
 | `task lint`                   | Run golangci-lint.                                  |
 | `task test`                   | Run all tests.                                      |
 | `task tidy`                   | `go mod tidy` and `go mod verify`.                  |
+| `task build-linux`            | Cross-compile a static linux/amd64 binary to `dist/ghostman-server`. |
 
 `task` loads `.env` automatically, so no shell-specific environment setup is
 needed on any platform.
+
+### Production build
+
+`task build-linux` builds the deployable server from any OS (Windows included):
+`GOOS=linux GOARCH=amd64 CGO_ENABLED=0`, stripped with `-s -w`, into
+`dist/ghostman-server` (gitignored). It stamps the binary with
+`git describe --tags --always --dirty` and the UTC build time, which the server
+logs at startup and reports from `/healthz`:
+
+```json
+{ "status": "ok", "version": "v1.0.0-3-g490bd0d-dirty" }
+```
+
+Builds made with `go run` or a plain `go build` report `"version": "dev"`. Until
+the repository has a tag, the version is the bare commit hash.
 
 ## Layout
 

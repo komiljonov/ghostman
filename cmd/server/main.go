@@ -39,6 +39,17 @@ const (
 	sessionCleanupInterval = time.Hour
 )
 
+// Build information, stamped at link time by `task build-linux`:
+//
+//	-ldflags "-X main.version=<git describe> -X main.buildTime=<RFC3339 UTC>"
+//
+// They must stay package-level string variables (not constants) for -X to
+// set them. A plain `go run` or `go build` keeps these defaults.
+var (
+	version   = "dev"
+	buildTime = "unknown"
+)
+
 func main() {
 	migrateCmd := flag.String("migrate", "", "run a migration command instead of the server: up, down, status or create")
 	migrationName := flag.String("name", "", "migration name, used with -migrate=create")
@@ -67,6 +78,11 @@ func run(migrateCmd, migrationName string) error {
 
 	logger := newLogger(cfg)
 	slog.SetDefault(logger)
+
+	logger.Info("starting ghostman",
+		slog.String("version", version),
+		slog.String("build_time", buildTime),
+	)
 
 	// Signals cancel this context, which unwinds both the migration commands
 	// and the server.
@@ -125,7 +141,7 @@ func run(migrateCmd, migrationName string) error {
 
 // serve runs the HTTP server until ctx is cancelled, then drains connections.
 func serve(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store api.Store) error {
-	srv := api.NewServer(cfg, logger, pool, store)
+	srv := api.NewServer(cfg, logger, pool, store, api.BuildInfo{Version: version, BuildTime: buildTime})
 
 	// ListenAndServe blocks, so it runs in its own goroutine and reports a
 	// startup failure back through this channel.

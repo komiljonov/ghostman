@@ -20,6 +20,27 @@ tasks:
     cmds:
       - go run {{.SERVER_PKG}}
 
+  build-linux:
+    desc: Cross-compile the server for linux/amd64 into dist/ghostman-server
+    vars:
+      # Falls back to "unknown" outside a git checkout. 2>/dev/null works on
+      # Windows too: go-task's shell interpreter maps it to NUL.
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo unknown
+      # A template, not `date -u`: there is no date binary on Windows.
+      BUILD_TIME: '{{dateInZone "2006-01-02T15:04:05Z07:00" now "UTC"}}'
+    # Set per task through env:, so the cross-compile settings never leak into
+    # other tasks and no shell-specific VAR=val syntax is needed.
+    env:
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: "0"
+    cmds:
+      # -s -w strips the symbol table and DWARF data for a smaller binary;
+      # -trimpath keeps build-machine paths out of it.
+      - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.buildTime={{.BUILD_TIME}}" -o dist/ghostman-server {{.SERVER_PKG}}
+      - echo "built dist/ghostman-server ({{.VERSION}}, {{.BUILD_TIME}})"
+
   db:up:
     desc: Start PostgreSQL and wait until it is healthy
     cmds:

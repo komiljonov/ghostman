@@ -2,9 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/komiljonov/ghostman/internal/db"
+	"github.com/komiljonov/ghostman/internal/testdb"
 )
 
 func TestHandleHello(t *testing.T) {
@@ -95,5 +101,30 @@ func TestRecoverPanics(t *testing.T) {
 
 	if got.Error.Message != messageInternal {
 		t.Errorf("message = %q, want %q", got.Error.Message, messageInternal)
+	}
+}
+
+// TestHealthzReportsVersion checks /healthz carries the build version stamped
+// into the binary, alongside its status. It needs a real pool to ping.
+func TestHealthzReportsVersion(t *testing.T) {
+	pool := testdb.New(t, "api")
+	a := &api{
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		pool:   pool,
+		store:  db.NewStore(pool),
+		build:  BuildInfo{Version: "v1.2.3-4-gabc1234-dirty", BuildTime: "2026-10-06T12:00:00Z"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
+	a.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body)
+	}
+
+	// Exact body: status and version, nothing else.
+	if got, want := strings.TrimSpace(rec.Body.String()), `{"status":"ok","version":"v1.2.3-4-gabc1234-dirty"}`; got != want {
+		t.Errorf("body = %s, want %s", got, want)
 	}
 }
