@@ -34,8 +34,9 @@ type folderCreateRequest struct {
 // folderUpdateRequest is a partial update: an absent (or null) field keeps its
 // current value.
 type folderUpdateRequest struct {
-	Name            *string `json:"name"`
-	FollowRedirects *string `json:"follow_redirects"`
+	Name            *string         `json:"name"`
+	FollowRedirects *string         `json:"follow_redirects"`
+	Auth            json.RawMessage `json:"auth"`
 }
 
 type folderMoveRequest struct {
@@ -54,24 +55,26 @@ type folderOrderRequest struct {
 // folderResponse is the full shape, used wherever a single folder is the
 // subject of the request. parent_id is null at the project root.
 type folderResponse struct {
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	ParentID        *string   `json:"parent_id"`
-	Name            string    `json:"name"`
-	FollowRedirects string    `json:"follow_redirects"`
-	SortOrder       int32     `json:"sort_order"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string           `json:"id"`
+	ProjectID       string           `json:"project_id"`
+	ParentID        *string          `json:"parent_id"`
+	Name            string           `json:"name"`
+	FollowRedirects string           `json:"follow_redirects"`
+	Auth            nodeAuthResponse `json:"auth"`
+	SortOrder       int32            `json:"sort_order"`
+	CreatedAt       time.Time        `json:"created_at"`
 }
 
 // folderSummaryResponse is one entry of a project's flat folder list. The
 // project is implied by the request path, so it is not repeated.
 type folderSummaryResponse struct {
-	ID              string    `json:"id"`
-	ParentID        *string   `json:"parent_id"`
-	Name            string    `json:"name"`
-	FollowRedirects string    `json:"follow_redirects"`
-	SortOrder       int32     `json:"sort_order"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string           `json:"id"`
+	ParentID        *string          `json:"parent_id"`
+	Name            string           `json:"name"`
+	FollowRedirects string           `json:"follow_redirects"`
+	Auth            nodeAuthResponse `json:"auth"`
+	SortOrder       int32            `json:"sort_order"`
+	CreatedAt       time.Time        `json:"created_at"`
 }
 
 // badRequestError marks a validation failure raised inside a store
@@ -87,8 +90,10 @@ func newFolderResponse(folder db.Folder) folderResponse {
 		ParentID:        optionalUUIDString(folder.ParentID),
 		Name:            folder.Name,
 		FollowRedirects: folder.FollowRedirects,
-		SortOrder:       folder.SortOrder,
-		CreatedAt:       folder.CreatedAt,
+		Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
+			folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
+		SortOrder: folder.SortOrder,
+		CreatedAt: folder.CreatedAt,
 	}
 }
 
@@ -172,8 +177,10 @@ func (a *api) handleListFolders(w http.ResponseWriter, r *http.Request) {
 			ParentID:        optionalUUIDString(folder.ParentID),
 			Name:            folder.Name,
 			FollowRedirects: folder.FollowRedirects,
-			SortOrder:       folder.SortOrder,
-			CreatedAt:       folder.CreatedAt,
+			Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
+				folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
+			SortOrder: folder.SortOrder,
+			CreatedAt: folder.CreatedAt,
 		})
 	}
 
@@ -203,23 +210,31 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.FollowRedirects == nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, "provide at least one of name or follow_redirects")
+	auth, err := parseAuthPatch(req.Auth)
+	if err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+
+	if req.Name == nil && req.FollowRedirects == nil && auth == nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, "provide at least one of name, follow_redirects or auth")
 		return
 	}
 
 	params := db.UpdateFolderParams{ID: folderID, FollowRedirects: req.FollowRedirects}
+	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
+		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
 
 	if req.Name != nil {
-		name, err := validateName(*req.Name, minFolderNameLength, maxFolderNameLength)
-		if err != nil {
-			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		name, nameErr := validateName(*req.Name, minFolderNameLength, maxFolderNameLength)
+		if nameErr != nil {
+			a.writeError(w, r, http.StatusBadRequest, codeBadRequest, nameErr.Error())
 			return
 		}
 		params.Name = &name
 	}
 
-	if err := validateToggleSetting("follow_redirects", req.FollowRedirects); err != nil {
+	if err = validateToggleSetting("follow_redirects", req.FollowRedirects); err != nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}

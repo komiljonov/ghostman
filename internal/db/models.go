@@ -45,6 +45,14 @@ type Folder struct {
 	CreatedAt time.Time  `json:"created_at"`
 	// inherit = resolve via parent chain (folder -> ... -> client global default); global = skip ancestors, use client global default; on/off = explicit. Resolved by the client; the server only stores it.
 	FollowRedirects string `json:"follow_redirects"`
+	// inherit = resolve via parent chain, chain end = no auth; none = explicitly no auth (stops the chain); bearer/basic/api_key = explicit. auth_* values may contain {{vars}}, resolved client-side at send; fields not matching auth_type are preserved. Resolved by the client.
+	AuthType          string `json:"auth_type"`
+	AuthBearerToken   string `json:"auth_bearer_token"`
+	AuthBasicUsername string `json:"auth_basic_username"`
+	AuthBasicPassword string `json:"auth_basic_password"`
+	AuthApiKeyName    string `json:"auth_api_key_name"`
+	AuthApiKeyValue   string `json:"auth_api_key_value"`
+	AuthApiKeyIn      string `json:"auth_api_key_in"`
 }
 
 type Project struct {
@@ -77,6 +85,14 @@ type Request struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 	// inherit = resolve via parent chain (folder -> ... -> client global default); global = skip ancestors, use client global default; on/off = explicit. Resolved by the client; the server only stores it.
 	FollowRedirects string `json:"follow_redirects"`
+	// inherit = resolve via parent chain, chain end = no auth; none = explicitly no auth (stops the chain); bearer/basic/api_key = explicit. auth_* values may contain {{vars}}, resolved client-side at send; fields not matching auth_type are preserved. Resolved by the client.
+	AuthType          string `json:"auth_type"`
+	AuthBearerToken   string `json:"auth_bearer_token"`
+	AuthBasicUsername string `json:"auth_basic_username"`
+	AuthBasicPassword string `json:"auth_basic_password"`
+	AuthApiKeyName    string `json:"auth_api_key_name"`
+	AuthApiKeyValue   string `json:"auth_api_key_value"`
+	AuthApiKeyIn      string `json:"auth_api_key_in"`
 }
 
 type Session struct {

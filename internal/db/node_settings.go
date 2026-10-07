@@ -22,3 +22,23 @@ const (
 // ToggleSettingValues lists every value, in the order error messages name
 // them.
 var ToggleSettingValues = []string{SettingInherit, SettingGlobal, SettingOn, SettingOff}
+
+// Authorization types and API-key placements. They mirror the
+// <table>_auth_type and <table>_auth_api_key_in CHECK constraints.
+const (
+	AuthInherit = "inherit"
+	AuthNone    = "none"
+	AuthBearer  = "bearer"
+	AuthBasic   = "basic"
+	AuthAPIKey  = "api_key"
+
+	APIKeyInHeader = "header"
+	APIKeyInQuery  = "query"
+)
+
+// AuthTypes and APIKeyPlacements list every value, in the order error
+// messages name them.
+var (
+	AuthTypes        = []string{AuthInherit, AuthNone, AuthBearer, AuthBasic, AuthAPIKey}
+	APIKeyPlacements = []string{APIKeyInHeader, APIKeyInQuery}
+)

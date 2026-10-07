@@ -95,7 +95,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
 | POST   | `/api/v1/projects/{project_id}/folders` | bearer | Project access. `{name, parent_id?}` → `201`; appended after its siblings. `400` if the parent is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/folders` | bearer | Project access. Every folder as a flat list `[{id, parent_id, name, sort_order, created_at}]`. |
-| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?}` → `200`; partial update. |
+| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?, auth?}` → `200`; partial update. |
 | POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
 | PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
 | DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
@@ -112,7 +112,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
 | GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -295,8 +295,58 @@ in the folder list, the request list and `GET /requests/{id}`.
 
 It is set with `PATCH /folders/{id}` or `PATCH /requests/{id}`: absent leaves it
 unchanged, anything outside the four values is `400`. New folders and requests
-always start at `inherit`. Future per-node settings (auth, proxy) will follow
-the same shape.
+always start at `inherit`. Future per-node settings (proxy) will follow the
+same shape.
+
+### Authorization
+
+The second cascading setting is `auth`, one object per folder and request:
+
+```json
+{
+  "type": "bearer",
+  "bearer_token": "{{api_token}}",
+  "basic_username": "",
+  "basic_password": "",
+  "api_key_name": "",
+  "api_key_value": "",
+  "api_key_in": "header"
+}
+```
+
+| `type`    | Meaning                                                                 |
+| --------- | ----------------------------------------------------------------------- |
+| `inherit` | Use the parent folder's auth, up the chain. If every node up to the root inherits, the request is sent **with no auth**. The default. |
+| `none`    | Explicitly no auth. Unlike `inherit`, this **stops** the chain: a request marked `none` inside a bearer-auth folder sends no credentials. |
+| `bearer`  | `Authorization: Bearer <bearer_token>`.                                 |
+| `basic`   | HTTP basic auth with `basic_username` / `basic_password`.               |
+| `api_key` | `api_key_name` = `api_key_value`, sent as a header or a query parameter (`api_key_in`: `header` or `query`). |
+
+So `none` and `inherit` look the same at the top of the tree but differ below
+it: `inherit` says "whatever my folder does", `none` says "nothing, whatever my
+folder does". As with `follow_redirects`, resolving the chain is the client's
+job; the server stores each node's values and returns them in full in the
+folder list, the request list and `GET /requests/{id}`.
+
+Set it with `PATCH /folders/{id}` or `PATCH /requests/{id}`, e.g.
+`{"auth": {"type": "basic", "basic_password": "{{new_password}}"}}`:
+
+- `type` is required whenever `auth` is sent; the other fields are optional and
+  only those sent are changed, so the example above keeps the stored username.
+  An absent (or `null`) `auth` leaves everything unchanged.
+- Fields that do not match the current type are **kept**, not cleared:
+  switching from `bearer` to `basic` and back restores the old bearer token.
+  Send an empty string to clear a field.
+- Every value is an opaque string of at most 8192 characters. Unknown fields,
+  an unknown `type` or `api_key_in`, and non-string values are `400`, with a
+  message naming the field (`auth.type is required`).
+
+**Keep real credentials out of these fields.** Unlike a secret variable's
+value, whatever is stored here is synced in plaintext to every team member who
+can open the project. Put the credential in a **secret variable** (whose value
+never leaves the desktop client) and reference it: `"bearer_token":
+"{{api_token}}"`. The client substitutes `{{variables}}` at send time; the
+server never resolves them.
 
 ## Environments
 
