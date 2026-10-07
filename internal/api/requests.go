@@ -44,12 +44,13 @@ type requestCreateRequest struct {
 // replace the whole value; they are decoded raw so their validators can report
 // errors by path.
 type requestUpdateRequest struct {
-	Name        *string         `json:"name"`
-	Method      *string         `json:"method"`
-	URL         *string         `json:"url"`
-	Headers     json.RawMessage `json:"headers"`
-	QueryParams json.RawMessage `json:"query_params"`
-	Body        json.RawMessage `json:"body"`
+	Name            *string         `json:"name"`
+	Method          *string         `json:"method"`
+	URL             *string         `json:"url"`
+	Headers         json.RawMessage `json:"headers"`
+	QueryParams     json.RawMessage `json:"query_params"`
+	Body            json.RawMessage `json:"body"`
+	FollowRedirects *string         `json:"follow_redirects"`
 }
 
 type requestMoveRequest struct {
@@ -68,15 +69,18 @@ type requestOrderRequest struct {
 // requestResponse is a request without its headers, query parameters and
 // body. folder_id is null at the project root.
 type requestResponse struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"project_id"`
-	FolderID  *string   `json:"folder_id"`
-	Name      string    `json:"name"`
-	Method    string    `json:"method"`
-	URL       string    `json:"url"`
-	SortOrder int32     `json:"sort_order"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string  `json:"id"`
+	ProjectID string  `json:"project_id"`
+	FolderID  *string `json:"folder_id"`
+	Name      string  `json:"name"`
+	Method    string  `json:"method"`
+	URL       string  `json:"url"`
+	// FollowRedirects is the stored per-node setting, unresolved; the client
+	// resolves it through the folder chain.
+	FollowRedirects string    `json:"follow_redirects"`
+	SortOrder       int32     `json:"sort_order"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // requestDetailResponse is the full request, returned by GET and PATCH on
@@ -100,15 +104,16 @@ func newRequestDetailResponse(request db.Request) requestDetailResponse {
 
 func newRequestResponse(request db.Request) requestResponse {
 	return requestResponse{
-		ID:        request.ID.String(),
-		ProjectID: request.ProjectID.String(),
-		FolderID:  optionalUUIDString(request.FolderID),
-		Name:      request.Name,
-		Method:    request.Method,
-		URL:       request.Url,
-		SortOrder: request.SortOrder,
-		CreatedAt: request.CreatedAt,
-		UpdatedAt: request.UpdatedAt,
+		ID:              request.ID.String(),
+		ProjectID:       request.ProjectID.String(),
+		FolderID:        optionalUUIDString(request.FolderID),
+		Name:            request.Name,
+		Method:          request.Method,
+		URL:             request.Url,
+		FollowRedirects: request.FollowRedirects,
+		SortOrder:       request.SortOrder,
+		CreatedAt:       request.CreatedAt,
+		UpdatedAt:       request.UpdatedAt,
 	}
 }
 
@@ -203,15 +208,16 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 	requests := make([]requestResponse, 0, len(rows))
 	for _, row := range rows {
 		requests = append(requests, requestResponse{
-			ID:        row.ID.String(),
-			ProjectID: row.ProjectID.String(),
-			FolderID:  optionalUUIDString(row.FolderID),
-			Name:      row.Name,
-			Method:    row.Method,
-			URL:       row.Url,
-			SortOrder: row.SortOrder,
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
+			ID:              row.ID.String(),
+			ProjectID:       row.ProjectID.String(),
+			FolderID:        optionalUUIDString(row.FolderID),
+			Name:            row.Name,
+			Method:          row.Method,
+			URL:             row.Url,
+			FollowRedirects: row.FollowRedirects,
+			SortOrder:       row.SortOrder,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
 		})
 	}
 
@@ -281,10 +287,16 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.Method == nil && req.URL == nil &&
+	if err = validateToggleSetting("follow_redirects", req.FollowRedirects); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	params.FollowRedirects = req.FollowRedirects
+
+	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil &&
 		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params or body")
+			"provide at least one of name, method, url, headers, query_params, body or follow_redirects")
 		return
 	}
 

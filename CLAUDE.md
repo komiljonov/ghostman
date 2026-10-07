@@ -61,6 +61,19 @@ endpoints without discussion. Start from the backlog below.
   environments_project_id_idx / environment_variables_environment_id_idx
   (covered by the unique indexes)
 
+## Cascading per-node settings (pattern for future settings)
+follow_redirects is the first; auth, proxy etc. follow the same pattern:
+- A NOT NULL text column on BOTH folders and requests, DEFAULT 'inherit', with
+  a named CHECK (`<table>_<setting>`). On/off settings use inherit|global|on|off
+  (db.ToggleSettingValues; validated by validateToggleSetting in internal/api).
+- inherit = resolve via parent chain (request → folder → … → client global
+  default); global = skip ancestors, use the client default; anything else is
+  explicit. Resolution is CLIENT logic — the server only stores per-node
+  values and never resolves or knows the global default.
+- Writable only via the node's PATCH (absent = unchanged, no clear), not on
+  create. Returned in GET /requests/{id} AND in the folder and request lists,
+  so the client resolver gets every node's value from lists it already fetches.
+
 ## Secret variables
 The server stores a secret variable's key but NEVER its value — values live only
 in the desktop client. A non-empty value on a secret → 400; regular → secret nulls

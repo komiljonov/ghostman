@@ -49,7 +49,7 @@ VALUES (
           AND siblings.folder_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
 `
 
 type CreateRequestParams struct {
@@ -86,6 +86,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
@@ -101,7 +102,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id uuid.UUID) error {
 }
 
 const getRequestByID = `-- name: GetRequestByID :one
-SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
+SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
 FROM requests
 WHERE id = $1
 `
@@ -122,27 +123,29 @@ func (q *Queries) GetRequestByID(ctx context.Context, id uuid.UUID) (Request, er
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
 
 const listRequestsByProject = `-- name: ListRequestsByProject :many
-SELECT id, project_id, folder_id, name, method, url, sort_order, created_at, updated_at
+SELECT id, project_id, folder_id, name, method, url, follow_redirects, sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at
 `
 
 type ListRequestsByProjectRow struct {
-	ID        uuid.UUID  `json:"id"`
-	ProjectID uuid.UUID  `json:"project_id"`
-	FolderID  *uuid.UUID `json:"folder_id"`
-	Name      string     `json:"name"`
-	Method    string     `json:"method"`
-	Url       string     `json:"url"`
-	SortOrder int32      `json:"sort_order"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	ProjectID       uuid.UUID  `json:"project_id"`
+	FolderID        *uuid.UUID `json:"folder_id"`
+	Name            string     `json:"name"`
+	Method          string     `json:"method"`
+	Url             string     `json:"url"`
+	FollowRedirects string     `json:"follow_redirects"`
+	SortOrder       int32      `json:"sort_order"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // Every request of the project in one flat list, without headers, query
@@ -163,6 +166,7 @@ func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID
 			&i.Name,
 			&i.Method,
 			&i.Url,
+			&i.FollowRedirects,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -220,19 +224,21 @@ SET name = COALESCE($1, name),
     headers = COALESCE($4::jsonb, headers),
     query_params = COALESCE($5::jsonb, query_params),
     body = COALESCE($6::jsonb, body),
+    follow_redirects = COALESCE($7, follow_redirects),
     updated_at = now()
-WHERE id = $7
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
+WHERE id = $8
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
 `
 
 type UpdateRequestParams struct {
-	Name        *string         `json:"name"`
-	Method      *string         `json:"method"`
-	Url         *string         `json:"url"`
-	Headers     json.RawMessage `json:"headers"`
-	QueryParams json.RawMessage `json:"query_params"`
-	Body        json.RawMessage `json:"body"`
-	ID          uuid.UUID       `json:"id"`
+	Name            *string         `json:"name"`
+	Method          *string         `json:"method"`
+	Url             *string         `json:"url"`
+	Headers         json.RawMessage `json:"headers"`
+	QueryParams     json.RawMessage `json:"query_params"`
+	Body            json.RawMessage `json:"body"`
+	FollowRedirects *string         `json:"follow_redirects"`
+	ID              uuid.UUID       `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
@@ -247,6 +253,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.Headers,
 		arg.QueryParams,
 		arg.Body,
+		arg.FollowRedirects,
 		arg.ID,
 	)
 	var i Request
@@ -263,6 +270,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
@@ -282,7 +290,7 @@ SET folder_id = $1,
     ),
     updated_at = now()
 WHERE requests.id = $3
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
 `
 
 type UpdateRequestFolderParams struct {
@@ -310,6 +318,7 @@ func (q *Queries) UpdateRequestFolder(ctx context.Context, arg UpdateRequestFold
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }

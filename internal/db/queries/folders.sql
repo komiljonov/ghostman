@@ -22,10 +22,13 @@ SELECT *
 FROM folders
 WHERE id = $1;
 
--- name: UpdateFolderName :one
+-- name: UpdateFolder :one
+-- A partial update merged in SQL, so it is atomic against concurrent edits:
+-- NULL keeps the current value.
 UPDATE folders
-SET name = $2
-WHERE id = $1
+SET name = COALESCE(sqlc.narg(name), name),
+    follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects)
+WHERE id = @id
 RETURNING *;
 
 -- name: DeleteFolder :exec

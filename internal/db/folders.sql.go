@@ -45,7 +45,7 @@ VALUES (
           AND siblings.parent_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, parent_id, name, sort_order, created_at
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects
 `
 
 type CreateFolderParams struct {
@@ -68,6 +68,7 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (Fol
 		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
@@ -84,7 +85,7 @@ func (q *Queries) DeleteFolder(ctx context.Context, id uuid.UUID) error {
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, project_id, parent_id, name, sort_order, created_at
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects
 FROM folders
 WHERE id = $1
 `
@@ -99,6 +100,7 @@ func (q *Queries) GetFolderByID(ctx context.Context, id uuid.UUID) (Folder, erro
 		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
@@ -137,7 +139,7 @@ func (q *Queries) IsDescendant(ctx context.Context, arg IsDescendantParams) (boo
 }
 
 const listFoldersByProject = `-- name: ListFoldersByProject :many
-SELECT id, project_id, parent_id, name, sort_order, created_at
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects
 FROM folders
 WHERE project_id = $1
 ORDER BY parent_id NULLS FIRST, sort_order, created_at
@@ -160,6 +162,7 @@ func (q *Queries) ListFoldersByProject(ctx context.Context, projectID uuid.UUID)
 			&i.Name,
 			&i.SortOrder,
 			&i.CreatedAt,
+			&i.FollowRedirects,
 		); err != nil {
 			return nil, err
 		}
@@ -206,20 +209,24 @@ func (q *Queries) ListSiblingFolderIDs(ctx context.Context, arg ListSiblingFolde
 	return items, nil
 }
 
-const updateFolderName = `-- name: UpdateFolderName :one
+const updateFolder = `-- name: UpdateFolder :one
 UPDATE folders
-SET name = $2
-WHERE id = $1
-RETURNING id, project_id, parent_id, name, sort_order, created_at
+SET name = COALESCE($1, name),
+    follow_redirects = COALESCE($2, follow_redirects)
+WHERE id = $3
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects
 `
 
-type UpdateFolderNameParams struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+type UpdateFolderParams struct {
+	Name            *string   `json:"name"`
+	FollowRedirects *string   `json:"follow_redirects"`
+	ID              uuid.UUID `json:"id"`
 }
 
-func (q *Queries) UpdateFolderName(ctx context.Context, arg UpdateFolderNameParams) (Folder, error) {
-	row := q.db.QueryRow(ctx, updateFolderName, arg.ID, arg.Name)
+// A partial update merged in SQL, so it is atomic against concurrent edits:
+// NULL keeps the current value.
+func (q *Queries) UpdateFolder(ctx context.Context, arg UpdateFolderParams) (Folder, error) {
+	row := q.db.QueryRow(ctx, updateFolder, arg.Name, arg.FollowRedirects, arg.ID)
 	var i Folder
 	err := row.Scan(
 		&i.ID,
@@ -228,6 +235,7 @@ func (q *Queries) UpdateFolderName(ctx context.Context, arg UpdateFolderNamePara
 		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }
@@ -246,7 +254,7 @@ SET parent_id = $1,
         )
     )
 WHERE folders.id = $3
-RETURNING id, project_id, parent_id, name, sort_order, created_at
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects
 `
 
 type UpdateFolderParentParams struct {
@@ -268,6 +276,7 @@ func (q *Queries) UpdateFolderParent(ctx context.Context, arg UpdateFolderParent
 		&i.Name,
 		&i.SortOrder,
 		&i.CreatedAt,
+		&i.FollowRedirects,
 	)
 	return i, err
 }

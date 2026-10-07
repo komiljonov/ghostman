@@ -95,7 +95,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
 | POST   | `/api/v1/projects/{project_id}/folders` | bearer | Project access. `{name, parent_id?}` → `201`; appended after its siblings. `400` if the parent is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/folders` | bearer | Project access. Every folder as a flat list `[{id, parent_id, name, sort_order, created_at}]`. |
-| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name}` → `200`. |
+| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?}` → `200`; partial update. |
 | POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
 | PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
 | DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
@@ -112,7 +112,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
 | GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -275,6 +275,28 @@ folder in an unreachable project looks exactly like one that does not exist.
 - `PUT /folders/order` rewrites one sibling set atomically; the list must be
   exactly that set.
 - Deleting a folder deletes its subtree; deleting a project deletes its folders.
+
+## Cascading settings
+
+Folders and requests carry per-node settings that cascade down the tree. The
+first is `follow_redirects`, one of:
+
+| Value     | Meaning                                                                 |
+| --------- | ----------------------------------------------------------------------- |
+| `inherit` | Use the parent folder's setting, up the chain to the client's global default. The default for every node. |
+| `global`  | Skip all ancestors and use the client's global default.                 |
+| `on`      | Follow redirects, whatever the ancestors say.                           |
+| `off`     | Do not follow redirects, whatever the ancestors say.                    |
+
+The server only **stores** each node's value; working out the effective value
+is the client's job, and the server has no notion of the global default. To
+make that possible from data the client already fetches, `follow_redirects` is
+in the folder list, the request list and `GET /requests/{id}`.
+
+It is set with `PATCH /folders/{id}` or `PATCH /requests/{id}`: absent leaves it
+unchanged, anything outside the four values is `400`. New folders and requests
+always start at `inherit`. Future per-node settings (auth, proxy) will follow
+the same shape.
 
 ## Environments
 
