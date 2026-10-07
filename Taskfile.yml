@@ -41,6 +41,17 @@ tasks:
       - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.buildTime={{.BUILD_TIME}}" -o dist/ghostman-server {{.SERVER_PKG}}
       - echo "built dist/ghostman-server ({{.VERSION}}, {{.BUILD_TIME}})"
 
+  upload:
+    desc: Upload dist/ghostman-server to DEPLOY_DIR on the server over SCP (does not build; run build-linux first)
+    aliases: [scp]
+    preconditions:
+      - sh: test -f dist/ghostman-server
+        msg: "dist/ghostman-server not found: run `task build-linux` first"
+    cmds:
+      # A Go uploader rather than the scp binary: OpenSSH cannot take a
+      # password from .env, and sshpass does not exist on Windows.
+      - go run ./cmd/upload
+
   db:up:
     desc: Start PostgreSQL and wait until it is healthy
     cmds:

@@ -406,6 +406,35 @@ logs at startup and reports from `/healthz`:
 Builds made with `go run` or a plain `go build` report `"version": "dev"`. Until
 the repository has a tag, the version is the bare commit hash.
 
+### Uploading to the server
+
+`task upload` (alias `task scp`) copies `dist/ghostman-server` to the server
+over SCP. It never builds: run `task build-linux` first. Settings come from
+`.env` (see `.env.example`): `DEPLOY_HOST`, `DEPLOY_PORT` (default 22),
+`DEPLOY_USER`, `DEPLOY_PASSWORD` and `DEPLOY_DIR`, the folder to upload into.
+
+```
+binary     dist/ghostman-server, 13.7 MiB, sha256 2ef5d03039b7
+connecting deploy@api.ghostman.uz:22 ...
+connected  in 412ms, host key ED25519 SHA256:… (known_hosts)
+uploading  /home/deploy/ghostman/.ghostman-server.upload
+  [============>           ]  52%  7.1 MiB / 13.7 MiB  1.2 MiB/s  ETA 5.5s
+uploaded   13.7 MiB in 11.2s (1.2 MiB/s)
+verifying  sha256 on the server ...
+verified   sha256 matches
+installing /home/deploy/ghostman/ghostman-server
+done       in 12.0s; restart the service on the server to run the new binary
+```
+
+- The server must already be in `~/.ssh/known_hosts` (connect once with `ssh`);
+  an unknown or changed host key is refused.
+- The file is uploaded under a temporary name, checked by sha256 on the server,
+  and only then renamed over `ghostman-server`, so a running server is never
+  disturbed and a damaged upload never replaces it. Nothing is restarted.
+- It is a small Go program (`cmd/upload`) rather than the `scp` command, because
+  OpenSSH cannot read a password from `.env` and `sshpass` does not exist on
+  Windows.
+
 ## Layout
 
 ```
