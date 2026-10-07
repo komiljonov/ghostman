@@ -36,6 +36,7 @@ SET name = COALESCE(sqlc.narg(name), name),
     headers = COALESCE(sqlc.narg(headers)::jsonb, headers),
     query_params = COALESCE(sqlc.narg(query_params)::jsonb, query_params),
     body = COALESCE(sqlc.narg(body)::jsonb, body),
+    follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects),
     updated_at = now()
 WHERE id = @id
 RETURNING *;
@@ -47,7 +48,7 @@ WHERE id = $1;
 -- name: ListRequestsByProject :many
 -- Every request of the project in one flat list, without headers, query
 -- parameters or body; the client places them in the folder tree.
-SELECT id, project_id, folder_id, name, method, url, sort_order, created_at, updated_at
+SELECT id, project_id, folder_id, name, method, url, follow_redirects, sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at;

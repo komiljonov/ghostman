@@ -87,7 +87,7 @@ type ProjectStore interface {
 type FolderStore interface {
 	GetFolderByID(ctx context.Context, id uuid.UUID) (db.Folder, error)
 	ListFoldersByProject(ctx context.Context, projectID uuid.UUID) ([]db.Folder, error)
-	UpdateFolderName(ctx context.Context, arg db.UpdateFolderNameParams) (db.Folder, error)
+	UpdateFolder(ctx context.Context, arg db.UpdateFolderParams) (db.Folder, error)
 	DeleteFolder(ctx context.Context, id uuid.UUID) error
 
 	CreateFolderInProject(ctx context.Context, arg db.CreateFolderParams) (db.Folder, error)

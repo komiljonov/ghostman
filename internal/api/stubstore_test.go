@@ -143,7 +143,7 @@ func (unimplementedTeamStore) ListFoldersByProject(_ context.Context, _ uuid.UUI
 	return nil, errStubbed
 }
 
-func (unimplementedTeamStore) UpdateFolderName(_ context.Context, _ db.UpdateFolderNameParams) (db.Folder, error) {
+func (unimplementedTeamStore) UpdateFolder(_ context.Context, _ db.UpdateFolderParams) (db.Folder, error) {
 	return db.Folder{}, errStubbed
 }
 

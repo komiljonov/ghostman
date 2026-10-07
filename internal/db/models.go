@@ -43,6 +43,8 @@ type Folder struct {
 	Name      string     `json:"name"`
 	SortOrder int32      `json:"sort_order"`
 	CreatedAt time.Time  `json:"created_at"`
+	// inherit = resolve via parent chain (folder -> ... -> client global default); global = skip ancestors, use client global default; on/off = explicit. Resolved by the client; the server only stores it.
+	FollowRedirects string `json:"follow_redirects"`
 }
 
 type Project struct {
@@ -73,6 +75,8 @@ type Request struct {
 	SortOrder   int32           `json:"sort_order"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
+	// inherit = resolve via parent chain (folder -> ... -> client global default); global = skip ancestors, use client global default; on/off = explicit. Resolved by the client; the server only stores it.
+	FollowRedirects string `json:"follow_redirects"`
 }
 
 type Session struct {
