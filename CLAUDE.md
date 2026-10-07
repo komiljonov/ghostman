@@ -73,13 +73,25 @@ follow_redirects is the first; auth, proxy etc. follow the same pattern:
 - Writable only via the node's PATCH (absent = unchanged, no clear), not on
   create. Returned in GET /requests/{id} AND in the folder and request lists,
   so the client resolver gets every node's value from lists it already fetches.
+- Multi-field settings (auth) are one object in the API ({type, ...fields})
+  over flat auth_* columns: the object's `type` is required whenever it is sent,
+  other fields merge, and fields not matching the type are preserved so
+  switching back restores them. Auth types: inherit | none | bearer | basic |
+  api_key; 'none' is explicit no-auth and STOPS the chain, while the end of an
+  all-inherit chain is also no auth. Validated by parseAuthPatch (node_auth.go).
 
 ## Secret variables
 The server stores a secret variable's key but NEVER its value — values live only
 in the desktop client. A non-empty value on a secret → 400; regular → secret nulls
 the value in the same UPDATE; secrets always serialize value: null. The CHECK
 environment_variables_secret_no_value enforces it in the database. Never add a
-code path, column or log line that could carry a secret value.
+code path, column or log line that could carry a secret VARIABLE's value.
+
+Known exception, by design: the auth_* columns (bearer token, basic password,
+API key value) are stored and synced in plaintext to every member who can reach
+the project, and returned in the lists. They are meant to hold {{secret_var}}
+references, not literals — but the server does not enforce that. Do not log
+them; do not widen who can read them.
 
 ## Project access rule
 A user can reach a project iff they are a member of its team AND one of:

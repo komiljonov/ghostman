@@ -27,7 +27,14 @@ WHERE id = $1;
 -- NULL keeps the current value.
 UPDATE folders
 SET name = COALESCE(sqlc.narg(name), name),
-    follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects)
+    follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects),
+    auth_type = COALESCE(sqlc.narg(auth_type), auth_type),
+    auth_bearer_token = COALESCE(sqlc.narg(auth_bearer_token), auth_bearer_token),
+    auth_basic_username = COALESCE(sqlc.narg(auth_basic_username), auth_basic_username),
+    auth_basic_password = COALESCE(sqlc.narg(auth_basic_password), auth_basic_password),
+    auth_api_key_name = COALESCE(sqlc.narg(auth_api_key_name), auth_api_key_name),
+    auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
+    auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in)
 WHERE id = @id
 RETURNING *;
 

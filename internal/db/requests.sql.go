@@ -49,7 +49,7 @@ VALUES (
           AND siblings.folder_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
 `
 
 type CreateRequestParams struct {
@@ -87,6 +87,13 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FollowRedirects,
+		&i.AuthType,
+		&i.AuthBearerToken,
+		&i.AuthBasicUsername,
+		&i.AuthBasicPassword,
+		&i.AuthApiKeyName,
+		&i.AuthApiKeyValue,
+		&i.AuthApiKeyIn,
 	)
 	return i, err
 }
@@ -102,7 +109,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id uuid.UUID) error {
 }
 
 const getRequestByID = `-- name: GetRequestByID :one
-SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
+SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
 FROM requests
 WHERE id = $1
 `
@@ -124,28 +131,45 @@ func (q *Queries) GetRequestByID(ctx context.Context, id uuid.UUID) (Request, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FollowRedirects,
+		&i.AuthType,
+		&i.AuthBearerToken,
+		&i.AuthBasicUsername,
+		&i.AuthBasicPassword,
+		&i.AuthApiKeyName,
+		&i.AuthApiKeyValue,
+		&i.AuthApiKeyIn,
 	)
 	return i, err
 }
 
 const listRequestsByProject = `-- name: ListRequestsByProject :many
-SELECT id, project_id, folder_id, name, method, url, follow_redirects, sort_order, created_at, updated_at
+SELECT id, project_id, folder_id, name, method, url, follow_redirects,
+       auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
+       auth_api_key_name, auth_api_key_value, auth_api_key_in,
+       sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at
 `
 
 type ListRequestsByProjectRow struct {
-	ID              uuid.UUID  `json:"id"`
-	ProjectID       uuid.UUID  `json:"project_id"`
-	FolderID        *uuid.UUID `json:"folder_id"`
-	Name            string     `json:"name"`
-	Method          string     `json:"method"`
-	Url             string     `json:"url"`
-	FollowRedirects string     `json:"follow_redirects"`
-	SortOrder       int32      `json:"sort_order"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID                uuid.UUID  `json:"id"`
+	ProjectID         uuid.UUID  `json:"project_id"`
+	FolderID          *uuid.UUID `json:"folder_id"`
+	Name              string     `json:"name"`
+	Method            string     `json:"method"`
+	Url               string     `json:"url"`
+	FollowRedirects   string     `json:"follow_redirects"`
+	AuthType          string     `json:"auth_type"`
+	AuthBearerToken   string     `json:"auth_bearer_token"`
+	AuthBasicUsername string     `json:"auth_basic_username"`
+	AuthBasicPassword string     `json:"auth_basic_password"`
+	AuthApiKeyName    string     `json:"auth_api_key_name"`
+	AuthApiKeyValue   string     `json:"auth_api_key_value"`
+	AuthApiKeyIn      string     `json:"auth_api_key_in"`
+	SortOrder         int32      `json:"sort_order"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // Every request of the project in one flat list, without headers, query
@@ -167,6 +191,13 @@ func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID
 			&i.Method,
 			&i.Url,
 			&i.FollowRedirects,
+			&i.AuthType,
+			&i.AuthBearerToken,
+			&i.AuthBasicUsername,
+			&i.AuthBasicPassword,
+			&i.AuthApiKeyName,
+			&i.AuthApiKeyValue,
+			&i.AuthApiKeyIn,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -225,20 +256,34 @@ SET name = COALESCE($1, name),
     query_params = COALESCE($5::jsonb, query_params),
     body = COALESCE($6::jsonb, body),
     follow_redirects = COALESCE($7, follow_redirects),
+    auth_type = COALESCE($8, auth_type),
+    auth_bearer_token = COALESCE($9, auth_bearer_token),
+    auth_basic_username = COALESCE($10, auth_basic_username),
+    auth_basic_password = COALESCE($11, auth_basic_password),
+    auth_api_key_name = COALESCE($12, auth_api_key_name),
+    auth_api_key_value = COALESCE($13, auth_api_key_value),
+    auth_api_key_in = COALESCE($14, auth_api_key_in),
     updated_at = now()
-WHERE id = $8
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
+WHERE id = $15
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
 `
 
 type UpdateRequestParams struct {
-	Name            *string         `json:"name"`
-	Method          *string         `json:"method"`
-	Url             *string         `json:"url"`
-	Headers         json.RawMessage `json:"headers"`
-	QueryParams     json.RawMessage `json:"query_params"`
-	Body            json.RawMessage `json:"body"`
-	FollowRedirects *string         `json:"follow_redirects"`
-	ID              uuid.UUID       `json:"id"`
+	Name              *string         `json:"name"`
+	Method            *string         `json:"method"`
+	Url               *string         `json:"url"`
+	Headers           json.RawMessage `json:"headers"`
+	QueryParams       json.RawMessage `json:"query_params"`
+	Body              json.RawMessage `json:"body"`
+	FollowRedirects   *string         `json:"follow_redirects"`
+	AuthType          *string         `json:"auth_type"`
+	AuthBearerToken   *string         `json:"auth_bearer_token"`
+	AuthBasicUsername *string         `json:"auth_basic_username"`
+	AuthBasicPassword *string         `json:"auth_basic_password"`
+	AuthApiKeyName    *string         `json:"auth_api_key_name"`
+	AuthApiKeyValue   *string         `json:"auth_api_key_value"`
+	AuthApiKeyIn      *string         `json:"auth_api_key_in"`
+	ID                uuid.UUID       `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
@@ -254,6 +299,13 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.QueryParams,
 		arg.Body,
 		arg.FollowRedirects,
+		arg.AuthType,
+		arg.AuthBearerToken,
+		arg.AuthBasicUsername,
+		arg.AuthBasicPassword,
+		arg.AuthApiKeyName,
+		arg.AuthApiKeyValue,
+		arg.AuthApiKeyIn,
 		arg.ID,
 	)
 	var i Request
@@ -271,6 +323,13 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FollowRedirects,
+		&i.AuthType,
+		&i.AuthBearerToken,
+		&i.AuthBasicUsername,
+		&i.AuthBasicPassword,
+		&i.AuthApiKeyName,
+		&i.AuthApiKeyValue,
+		&i.AuthApiKeyIn,
 	)
 	return i, err
 }
@@ -290,7 +349,7 @@ SET folder_id = $1,
     ),
     updated_at = now()
 WHERE requests.id = $3
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
 `
 
 type UpdateRequestFolderParams struct {
@@ -319,6 +378,13 @@ func (q *Queries) UpdateRequestFolder(ctx context.Context, arg UpdateRequestFold
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FollowRedirects,
+		&i.AuthType,
+		&i.AuthBearerToken,
+		&i.AuthBasicUsername,
+		&i.AuthBasicPassword,
+		&i.AuthApiKeyName,
+		&i.AuthApiKeyValue,
+		&i.AuthApiKeyIn,
 	)
 	return i, err
 }

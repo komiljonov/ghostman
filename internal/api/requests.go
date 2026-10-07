@@ -51,6 +51,7 @@ type requestUpdateRequest struct {
 	QueryParams     json.RawMessage `json:"query_params"`
 	Body            json.RawMessage `json:"body"`
 	FollowRedirects *string         `json:"follow_redirects"`
+	Auth            json.RawMessage `json:"auth"`
 }
 
 type requestMoveRequest struct {
@@ -75,12 +76,13 @@ type requestResponse struct {
 	Name      string  `json:"name"`
 	Method    string  `json:"method"`
 	URL       string  `json:"url"`
-	// FollowRedirects is the stored per-node setting, unresolved; the client
-	// resolves it through the folder chain.
-	FollowRedirects string    `json:"follow_redirects"`
-	SortOrder       int32     `json:"sort_order"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	// FollowRedirects and Auth are the stored per-node settings, unresolved;
+	// the client resolves them through the folder chain.
+	FollowRedirects string           `json:"follow_redirects"`
+	Auth            nodeAuthResponse `json:"auth"`
+	SortOrder       int32            `json:"sort_order"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 // requestDetailResponse is the full request, returned by GET and PATCH on
@@ -111,9 +113,11 @@ func newRequestResponse(request db.Request) requestResponse {
 		Method:          request.Method,
 		URL:             request.Url,
 		FollowRedirects: request.FollowRedirects,
-		SortOrder:       request.SortOrder,
-		CreatedAt:       request.CreatedAt,
-		UpdatedAt:       request.UpdatedAt,
+		Auth: newNodeAuthResponse(request.AuthType, request.AuthBearerToken, request.AuthBasicUsername, request.AuthBasicPassword,
+			request.AuthApiKeyName, request.AuthApiKeyValue, request.AuthApiKeyIn),
+		SortOrder: request.SortOrder,
+		CreatedAt: request.CreatedAt,
+		UpdatedAt: request.UpdatedAt,
 	}
 }
 
@@ -215,9 +219,11 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 			Method:          row.Method,
 			URL:             row.Url,
 			FollowRedirects: row.FollowRedirects,
-			SortOrder:       row.SortOrder,
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+			Auth: newNodeAuthResponse(row.AuthType, row.AuthBearerToken, row.AuthBasicUsername, row.AuthBasicPassword,
+				row.AuthApiKeyName, row.AuthApiKeyValue, row.AuthApiKeyIn),
+			SortOrder: row.SortOrder,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
 		})
 	}
 
@@ -293,10 +299,18 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	params.FollowRedirects = req.FollowRedirects
 
-	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil &&
+	auth, err := parseAuthPatch(req.Auth)
+	if err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
+		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
+
+	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
 		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params, body or follow_redirects")
+			"provide at least one of name, method, url, headers, query_params, body, follow_redirects or auth")
 		return
 	}
 

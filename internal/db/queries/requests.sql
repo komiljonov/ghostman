@@ -37,6 +37,13 @@ SET name = COALESCE(sqlc.narg(name), name),
     query_params = COALESCE(sqlc.narg(query_params)::jsonb, query_params),
     body = COALESCE(sqlc.narg(body)::jsonb, body),
     follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects),
+    auth_type = COALESCE(sqlc.narg(auth_type), auth_type),
+    auth_bearer_token = COALESCE(sqlc.narg(auth_bearer_token), auth_bearer_token),
+    auth_basic_username = COALESCE(sqlc.narg(auth_basic_username), auth_basic_username),
+    auth_basic_password = COALESCE(sqlc.narg(auth_basic_password), auth_basic_password),
+    auth_api_key_name = COALESCE(sqlc.narg(auth_api_key_name), auth_api_key_name),
+    auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
+    auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in),
     updated_at = now()
 WHERE id = @id
 RETURNING *;
@@ -48,7 +55,10 @@ WHERE id = $1;
 -- name: ListRequestsByProject :many
 -- Every request of the project in one flat list, without headers, query
 -- parameters or body; the client places them in the folder tree.
-SELECT id, project_id, folder_id, name, method, url, follow_redirects, sort_order, created_at, updated_at
+SELECT id, project_id, folder_id, name, method, url, follow_redirects,
+       auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
+       auth_api_key_name, auth_api_key_value, auth_api_key_in,
+       sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at;
