@@ -112,7 +112,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
 | GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -390,6 +390,11 @@ exactly like a missing id.
 - `PATCH` is a partial update of name, method, url, headers and query
   parameters, and returns the full request; `updated_at` moves on
   every update and move.
+- `response_filter` is a jq query the client applies to the response body for
+  display (e.g. `.data[] | {id, name}`). It is opaque to the server — jq syntax
+  is not checked — and limited to 2048 characters. Set it with `PATCH`; `""`
+  clears it, absent leaves it. It is in the request list and
+  `GET /requests/{id}`, and new requests start with none.
 - Moves and reorders run under the same per-project lock as folder moves.
 
 **Headers and query parameters** share one shape, an ordered array of rows:

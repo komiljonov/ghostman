@@ -93,6 +93,8 @@ type Request struct {
 	AuthApiKeyName    string `json:"auth_api_key_name"`
 	AuthApiKeyValue   string `json:"auth_api_key_value"`
 	AuthApiKeyIn      string `json:"auth_api_key_in"`
+	// jq query the client applies to response bodies for display; empty = no filter. Opaque to the server, not validated.
+	ResponseFilter string `json:"response_filter"`
 }
 
 type Session struct {
