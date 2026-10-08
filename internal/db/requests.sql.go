@@ -49,7 +49,7 @@ VALUES (
           AND siblings.folder_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter
 `
 
 type CreateRequestParams struct {
@@ -94,6 +94,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.AuthApiKeyName,
 		&i.AuthApiKeyValue,
 		&i.AuthApiKeyIn,
+		&i.ResponseFilter,
 	)
 	return i, err
 }
@@ -109,7 +110,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id uuid.UUID) error {
 }
 
 const getRequestByID = `-- name: GetRequestByID :one
-SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
+SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter
 FROM requests
 WHERE id = $1
 `
@@ -138,6 +139,7 @@ func (q *Queries) GetRequestByID(ctx context.Context, id uuid.UUID) (Request, er
 		&i.AuthApiKeyName,
 		&i.AuthApiKeyValue,
 		&i.AuthApiKeyIn,
+		&i.ResponseFilter,
 	)
 	return i, err
 }
@@ -146,6 +148,7 @@ const listRequestsByProject = `-- name: ListRequestsByProject :many
 SELECT id, project_id, folder_id, name, method, url, follow_redirects,
        auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
        auth_api_key_name, auth_api_key_value, auth_api_key_in,
+       response_filter,
        sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
@@ -167,6 +170,7 @@ type ListRequestsByProjectRow struct {
 	AuthApiKeyName    string     `json:"auth_api_key_name"`
 	AuthApiKeyValue   string     `json:"auth_api_key_value"`
 	AuthApiKeyIn      string     `json:"auth_api_key_in"`
+	ResponseFilter    string     `json:"response_filter"`
 	SortOrder         int32      `json:"sort_order"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -198,6 +202,7 @@ func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID
 			&i.AuthApiKeyName,
 			&i.AuthApiKeyValue,
 			&i.AuthApiKeyIn,
+			&i.ResponseFilter,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -263,9 +268,10 @@ SET name = COALESCE($1, name),
     auth_api_key_name = COALESCE($12, auth_api_key_name),
     auth_api_key_value = COALESCE($13, auth_api_key_value),
     auth_api_key_in = COALESCE($14, auth_api_key_in),
+    response_filter = COALESCE($15, response_filter),
     updated_at = now()
-WHERE id = $15
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
+WHERE id = $16
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter
 `
 
 type UpdateRequestParams struct {
@@ -283,6 +289,7 @@ type UpdateRequestParams struct {
 	AuthApiKeyName    *string         `json:"auth_api_key_name"`
 	AuthApiKeyValue   *string         `json:"auth_api_key_value"`
 	AuthApiKeyIn      *string         `json:"auth_api_key_in"`
+	ResponseFilter    *string         `json:"response_filter"`
 	ID                uuid.UUID       `json:"id"`
 }
 
@@ -306,6 +313,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.AuthApiKeyName,
 		arg.AuthApiKeyValue,
 		arg.AuthApiKeyIn,
+		arg.ResponseFilter,
 		arg.ID,
 	)
 	var i Request
@@ -330,6 +338,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.AuthApiKeyName,
 		&i.AuthApiKeyValue,
 		&i.AuthApiKeyIn,
+		&i.ResponseFilter,
 	)
 	return i, err
 }
@@ -349,7 +358,7 @@ SET folder_id = $1,
     ),
     updated_at = now()
 WHERE requests.id = $3
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter
 `
 
 type UpdateRequestFolderParams struct {
@@ -385,6 +394,7 @@ func (q *Queries) UpdateRequestFolder(ctx context.Context, arg UpdateRequestFold
 		&i.AuthApiKeyName,
 		&i.AuthApiKeyValue,
 		&i.AuthApiKeyIn,
+		&i.ResponseFilter,
 	)
 	return i, err
 }

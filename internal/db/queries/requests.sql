@@ -44,6 +44,7 @@ SET name = COALESCE(sqlc.narg(name), name),
     auth_api_key_name = COALESCE(sqlc.narg(auth_api_key_name), auth_api_key_name),
     auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
     auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in),
+    response_filter = COALESCE(sqlc.narg(response_filter), response_filter),
     updated_at = now()
 WHERE id = @id
 RETURNING *;
@@ -58,6 +59,7 @@ WHERE id = $1;
 SELECT id, project_id, folder_id, name, method, url, follow_redirects,
        auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
        auth_api_key_name, auth_api_key_value, auth_api_key_in,
+       response_filter,
        sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1

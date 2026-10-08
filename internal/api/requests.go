@@ -29,6 +29,9 @@ const (
 	minRequestNameLength = 1
 	maxRequestNameLength = 100
 	maxRequestURLLength  = 8192
+
+	// maxResponseFilterLength matches requests_response_filter_length.
+	maxResponseFilterLength = 2048
 )
 
 type requestCreateRequest struct {
@@ -52,6 +55,7 @@ type requestUpdateRequest struct {
 	Body            json.RawMessage `json:"body"`
 	FollowRedirects *string         `json:"follow_redirects"`
 	Auth            json.RawMessage `json:"auth"`
+	ResponseFilter  *string         `json:"response_filter"`
 }
 
 type requestMoveRequest struct {
@@ -80,9 +84,12 @@ type requestResponse struct {
 	// the client resolves them through the folder chain.
 	FollowRedirects string           `json:"follow_redirects"`
 	Auth            nodeAuthResponse `json:"auth"`
-	SortOrder       int32            `json:"sort_order"`
-	CreatedAt       time.Time        `json:"created_at"`
-	UpdatedAt       time.Time        `json:"updated_at"`
+	// ResponseFilter is a jq query the client applies to response bodies;
+	// opaque to the server.
+	ResponseFilter string    `json:"response_filter"`
+	SortOrder      int32     `json:"sort_order"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // requestDetailResponse is the full request, returned by GET and PATCH on
@@ -115,9 +122,10 @@ func newRequestResponse(request db.Request) requestResponse {
 		FollowRedirects: request.FollowRedirects,
 		Auth: newNodeAuthResponse(request.AuthType, request.AuthBearerToken, request.AuthBasicUsername, request.AuthBasicPassword,
 			request.AuthApiKeyName, request.AuthApiKeyValue, request.AuthApiKeyIn),
-		SortOrder: request.SortOrder,
-		CreatedAt: request.CreatedAt,
-		UpdatedAt: request.UpdatedAt,
+		ResponseFilter: request.ResponseFilter,
+		SortOrder:      request.SortOrder,
+		CreatedAt:      request.CreatedAt,
+		UpdatedAt:      request.UpdatedAt,
 	}
 }
 
@@ -221,9 +229,10 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 			FollowRedirects: row.FollowRedirects,
 			Auth: newNodeAuthResponse(row.AuthType, row.AuthBearerToken, row.AuthBasicUsername, row.AuthBasicPassword,
 				row.AuthApiKeyName, row.AuthApiKeyValue, row.AuthApiKeyIn),
-			SortOrder: row.SortOrder,
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
+			ResponseFilter: row.ResponseFilter,
+			SortOrder:      row.SortOrder,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 
@@ -307,10 +316,18 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
 		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
 
-	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
-		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
+	// Opaque jq query: only its length is checked; "" clears the filter.
+	if req.ResponseFilter != nil && utf8.RuneCountInString(*req.ResponseFilter) > maxResponseFilterLength {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params, body, follow_redirects or auth")
+			fmt.Sprintf("response_filter must be at most %d characters", maxResponseFilterLength))
+		return
+	}
+	params.ResponseFilter = req.ResponseFilter
+
+	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
+		req.ResponseFilter == nil && params.Headers == nil && params.QueryParams == nil && params.Body == nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
+			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth or response_filter")
 		return
 	}
 
