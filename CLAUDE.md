@@ -23,7 +23,7 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
-- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order and PUT /requests/order (same body-scoped shape)
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order, PUT /requests/order (same body-scoped shape), GET /webhooks/{id}/captures/{capture_id} (a capture id only means something within its endpoint)
 
 ## Status: server v1 API is COMPLETE (steps 1–7c)
 1. users + sessions (auth)
@@ -56,7 +56,7 @@ endpoints without discussion. Start from the backlog below.
 - Requests: file/multipart bodies (client-local by design for now), per-request
   auth config, request history
 - Variable history
-- Ops before public exposure: lock down CORS (currently *), rate-limit login
+- Ops before public exposure: lock down CORS (currently *). (Login/register rate limiting is done.)
 - Cleanups: make project/folder reorder 0-based; drop the redundant
   environments_project_id_idx / environment_variables_environment_id_idx
   (covered by the unique indexes)
@@ -97,6 +97,28 @@ API key value) are stored and synced in plaintext to every member who can reach
 the project, and returned in the lists. They are meant to hold {{secret_var}}
 references, not literals — but the server does not enforce that. Do not log
 them; do not widen who can read them.
+
+## Webhook capture (isolated code path)
+- HOOKS_DOMAINS (Config.HooksDomains, ordered, first = default) turns it on.
+  Unset → withCapture mounts NOTHING; the API is the whole router.
+- withCapture switches on the Host BEFORE any API middleware: capture hosts
+  (`<domain>`, `*.<domain>`) go to handleCapture only — no auth, no sessions, no
+  CORS, no 2 MiB API limit (oversized webhooks still get their configured
+  response, never 413). Every other host goes to the API unchanged; /h/... on
+  the API host is the API's own 404. Never route capture through the API chain.
+- A slug captures on ALL configured domains; webhook_endpoints.domain is a
+  display preference only. Slugs are crypto/rand [a-z0-9]{10}, never user-chosen.
+- Captures: 1 MiB stored (10 MiB read cut, body_truncated), newest 500 kept
+  (pruned in the insert's transaction), 10 req/s burst 30 per slug.
+
+## Rate limiting
+- internal/ratelimit: in-memory token bucket keyed by string. POST /auth/login
+  and POST /auth/register are limited per client IP (5/min, burst 10, separate
+  buckets) → 429 envelope + Retry-After. Capture reuses it per slug.
+- clientIP (internal/api/client_ip.go) is the ONE place that reads
+  X-Forwarded-For: only from a loopback peer (the local reverse proxy), and only
+  its last entry. Use it for anything keyed by IP.
+- A nil limiter means "off"; handler tests build api{} without them.
 
 ## Project access rule
 A user can reach a project iff they are a member of its team AND one of:

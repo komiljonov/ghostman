@@ -44,6 +44,9 @@ var (
 
 	// ErrNoRequestAccess is the same rule for requests.
 	ErrNoRequestAccess = errors.New("authz: user cannot access the request")
+
+	// ErrNoWebhookAccess is the same rule for webhook endpoints.
+	ErrNoWebhookAccess = errors.New("authz: user cannot access the webhook endpoint")
 )
 
 // Store is the query subset these checks need.
@@ -55,6 +58,7 @@ type Store interface {
 	GetEnvironmentByID(ctx context.Context, id uuid.UUID) (db.Environment, error)
 	GetVariableByID(ctx context.Context, id uuid.UUID) (db.EnvironmentVariable, error)
 	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
+	GetWebhookEndpointByID(ctx context.Context, id uuid.UUID) (db.WebhookEndpoint, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -257,4 +261,29 @@ func (c *Checker) RequireRequestAccess(ctx context.Context, requestID, userID uu
 	}
 
 	return request, nil
+}
+
+// RequireWebhookAccess returns the webhook endpoint when the user may reach
+// its project. Like folders, endpoints are working material: project access is
+// enough to manage them and read their captures.
+//
+// A missing endpoint and one in an unreachable project both come back as
+// ErrNoWebhookAccess, so the endpoint id is not observable.
+func (c *Checker) RequireWebhookAccess(ctx context.Context, endpointID, userID uuid.UUID) (db.WebhookEndpoint, error) {
+	endpoint, err := c.store.GetWebhookEndpointByID(ctx, endpointID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.WebhookEndpoint{}, ErrNoWebhookAccess
+		}
+		return db.WebhookEndpoint{}, fmt.Errorf("looking up webhook endpoint: %w", err)
+	}
+
+	if _, err := c.RequireProjectAccess(ctx, endpoint.ProjectID, userID); err != nil {
+		if errors.Is(err, ErrNoProjectAccess) {
+			return db.WebhookEndpoint{}, ErrNoWebhookAccess
+		}
+		return db.WebhookEndpoint{}, err
+	}
+
+	return endpoint, nil
 }

@@ -68,6 +68,15 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | ------ | ------------------------ | ------ | ------------------------------------ |
 | GET    | `/healthz`               | public | Liveness plus a database ping: `{status, version}`. Returns `503` with an error envelope when the database is unreachable. |
 | GET    | `/api/v1/hello`          | public | Placeholder endpoint.                |
+| GET    | `/api/v1/meta`           | public | `{hooks_domains: [...]}`: the webhook capture domains, first = default; `[]` = capture off. |
+| POST   | `/api/v1/projects/{project_id}/webhooks` | bearer | Project access. `{name, domain?}` → `201` with the full endpoint and its random slug. `409` past 20 per project, or when capture is not configured. |
+| GET    | `/api/v1/projects/{project_id}/webhooks` | bearer | Project access. `[{id, name, slug, domain, resp_status, created_at}]`. |
+| GET    | `/api/v1/webhooks/{id}`   | bearer | Project access. The full endpoint, response configuration included. |
+| PATCH  | `/api/v1/webhooks/{id}`   | bearer | Project access. `{name?, domain?, resp_status?, resp_headers?, resp_body?}` → `200`; partial update. |
+| DELETE | `/api/v1/webhooks/{id}`   | bearer | Project access. `204`; captures go with it and the slug stops capturing. |
+| GET    | `/api/v1/webhooks/{id}/captures` | bearer | Project access. `?after=<id>&limit=<1..100>`: captures newer than `after`, oldest first, summary fields only. |
+| GET    | `/api/v1/webhooks/{id}/captures/{capture_id}` | bearer | Project access. One capture in full: headers, body (base64). |
+| DELETE | `/api/v1/webhooks/{id}/captures` | bearer | Project access. Clears every capture. `204`. |
 | POST   | `/api/v1/auth/register`  | public | `{email, password, name}` → `201` with `{user, token}`. `409` if the email is taken, `400` on validation failure. |
 | POST   | `/api/v1/auth/login`     | public | `{email, password}` → `200` with `{user, token}`, `401` otherwise. |
 | POST   | `/api/v1/auth/logout`    | bearer | Deletes the session behind the current token. `204`. |
@@ -124,7 +133,8 @@ Errors always use a single envelope:
 ```
 
 Codes in use: `bad_request`, `unauthorized`, `forbidden`, `not_found`,
-`conflict`, `payload_too_large`, `internal_error`, `service_unavailable`.
+`conflict`, `payload_too_large`, `too_many_requests`, `internal_error`,
+`service_unavailable`.
 
 Request bodies are limited to 2 MiB. A larger one is refused with `413`
 (`payload_too_large`), before it is read when the client declares its
@@ -348,6 +358,71 @@ never leaves the desktop client) and reference it: `"bearer_token":
 "{{api_token}}"`. The client substitutes `{{variables}}` at send time; the
 server never resolves them.
 
+## Webhook capture
+
+A webhook endpoint is a random URL that records every request sent to it —
+for pointing a payment provider or a third-party callback at while you build
+against it. Captures are read back through the API.
+
+**Setup.** `HOOKS_DOMAINS` lists the capture domains, e.g.
+`HOOKS_DOMAINS=ear.ghostman.uz,hook.ghostman.uz`; the first is the default.
+Each needs DNS for the bare domain and a wildcard (`*.ear.ghostman.uz`) pointing
+at this server. Unset, the feature is off: no capture routing exists at all,
+`GET /api/v1/meta` returns `"hooks_domains": []`, and creating an endpoint is
+`409`.
+
+**URLs.** Every endpoint has a 10-character random slug (`[a-z0-9]`, never
+chosen by the user) and is reachable on every configured domain, in two forms:
+
+```
+https://<slug>.ear.ghostman.uz/any/path?x=1      path recorded as /any/path
+https://ear.ghostman.uz/h/<slug>/any/path?x=1    path recorded as /any/path
+```
+
+An endpoint's `domain` is only the *preferred* one for display (`""` = the
+default). Capture never checks it, so changing it — or dropping a domain from
+`HOOKS_DOMAINS` — never breaks a URL already handed out; a stored domain that is
+no longer configured is still returned as-is, and the client falls back to the
+default. Capture domains carry nothing else: any other path there is a plain
+`404`, and `/h/...` on the API host is just the API's normal `404`.
+
+**Capturing.** Any method, any path, no auth. The request's method, path,
+query, headers, content type, body and source IP are stored, and the sender
+gets the endpoint's configured response — status (default `200`), enabled
+headers, body (default `ok`) — plus an `X-Ghostman-Capture-Id` header.
+Configured `Content-Length`, `Transfer-Encoding` and `Connection` headers are
+not sent, since the server writes the body itself.
+
+- Bodies up to 1 MiB are stored whole. A larger one is still read (up to a
+  10 MiB hard cut) and answered normally — never a `413` — but stored cut at
+  1 MiB with `body_truncated: true`; `body_size` is what was received.
+- Each endpoint keeps its newest 500 captures; older ones are pruned as new
+  ones arrive.
+- Each endpoint accepts 10 requests a second, in bursts of up to 30; past that
+  the sender gets `429` and the request is not stored.
+- An unknown slug is a plain `404`.
+
+**Reading captures.** Poll `GET /webhooks/{id}/captures?after=<last id>`: it
+returns captures newer than `after`, oldest first, with summary fields only
+(`id, method, path, query, content_type, body_size, body_truncated, source_ip,
+received_at`), so the client appends and polls again from the last id. Fetch one
+in full — headers and base64 body — with `GET /webhooks/{id}/captures/{capture_id}`.
+Endpoints are managed by anyone with access to the project, at most 20 per
+project.
+
+## Rate limiting
+
+`POST /auth/login` and `POST /auth/register` are limited per client IP: 5
+attempts a minute after a burst of 10, each route with its own budget. Past it
+the answer is `429` with the standard envelope (`too_many_requests`) and a
+`Retry-After` header in seconds.
+
+The client IP is the TCP peer, unless that peer is a reverse proxy on the same
+machine (a loopback address): then it is the last entry of `X-Forwarded-For`,
+the one that proxy appended. A header sent by anyone else is ignored, so it
+cannot be used to dodge the limit. Limits are kept in memory per process and
+reset on restart.
+
 ## Scripts
 
 Folders and requests each have a `pre_script` and a `post_script`: JavaScript
@@ -470,10 +545,17 @@ cascades, constraints) create their own database next to the configured one —
 `ghostman_test_api` for `internal/api` — apply the embedded migrations and
 truncate between tests, so they never touch the development data.
 
-They read `DATABASE_URL`, which `task test` loads from `.env`. A bare
-`go test ./...` has no environment and **skips** them; use `task test`, or set
-`DATABASE_URL` yourself. When no database answers at all, they skip with a
-message rather than failing, so the suite still runs without Docker.
+They read `DATABASE_URL`, and what happens depends on it:
+
+| `DATABASE_URL`             | Database tests                                   |
+| -------------------------- | ------------------------------------------------ |
+| set, database reachable    | run                                              |
+| set, database unreachable  | **fail**, telling you to run `task db:up`        |
+| unset                      | skip (so a bare `go test ./...` runs unit tests) |
+
+`task test` always sets it — from `.env`, or the docker-compose default when
+`.env` has none — so under `task test` a stopped database is a loud failure,
+never a quiet skip that looks like a pass. Start it with `task db:up` first.
 
 ## Tasks
 
@@ -621,6 +703,7 @@ between projects. Moving a project is deferred deliberately:
 its access rows point at users who may not be in the destination team, and that
 question is unresolved.
 
-CORS is currently wide open (`Access-Control-Allow-Origin: *`) and there is no
-rate limiting on the login endpoint; both must be addressed before the server is
-exposed publicly.
+CORS is currently wide open (`Access-Control-Allow-Origin: *`); that must be
+addressed before the server is exposed publicly. Login and registration are
+rate-limited (see above), but only in memory per process: several server
+instances would each keep their own limits.
