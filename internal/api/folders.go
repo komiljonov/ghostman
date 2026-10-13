@@ -37,6 +37,8 @@ type folderUpdateRequest struct {
 	Name            *string         `json:"name"`
 	FollowRedirects *string         `json:"follow_redirects"`
 	Auth            json.RawMessage `json:"auth"`
+	PreScript       *string         `json:"pre_script"`
+	PostScript      *string         `json:"post_script"`
 }
 
 type folderMoveRequest struct {
@@ -61,6 +63,8 @@ type folderResponse struct {
 	Name            string           `json:"name"`
 	FollowRedirects string           `json:"follow_redirects"`
 	Auth            nodeAuthResponse `json:"auth"`
+	PreScript       string           `json:"pre_script"`
+	PostScript      string           `json:"post_script"`
 	SortOrder       int32            `json:"sort_order"`
 	CreatedAt       time.Time        `json:"created_at"`
 }
@@ -73,6 +77,8 @@ type folderSummaryResponse struct {
 	Name            string           `json:"name"`
 	FollowRedirects string           `json:"follow_redirects"`
 	Auth            nodeAuthResponse `json:"auth"`
+	PreScript       string           `json:"pre_script"`
+	PostScript      string           `json:"post_script"`
 	SortOrder       int32            `json:"sort_order"`
 	CreatedAt       time.Time        `json:"created_at"`
 }
@@ -92,8 +98,10 @@ func newFolderResponse(folder db.Folder) folderResponse {
 		FollowRedirects: folder.FollowRedirects,
 		Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
 			folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
-		SortOrder: folder.SortOrder,
-		CreatedAt: folder.CreatedAt,
+		PreScript:  folder.PreScript,
+		PostScript: folder.PostScript,
+		SortOrder:  folder.SortOrder,
+		CreatedAt:  folder.CreatedAt,
 	}
 }
 
@@ -179,8 +187,10 @@ func (a *api) handleListFolders(w http.ResponseWriter, r *http.Request) {
 			FollowRedirects: folder.FollowRedirects,
 			Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
 				folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
-			SortOrder: folder.SortOrder,
-			CreatedAt: folder.CreatedAt,
+			PreScript:  folder.PreScript,
+			PostScript: folder.PostScript,
+			SortOrder:  folder.SortOrder,
+			CreatedAt:  folder.CreatedAt,
 		})
 	}
 
@@ -216,12 +226,27 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.FollowRedirects == nil && auth == nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, "provide at least one of name, follow_redirects or auth")
+	if req.Name == nil && req.FollowRedirects == nil && auth == nil && req.PreScript == nil && req.PostScript == nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
+			"provide at least one of name, follow_redirects, auth, pre_script or post_script")
 		return
 	}
 
-	params := db.UpdateFolderParams{ID: folderID, FollowRedirects: req.FollowRedirects}
+	if err = validateScript("pre_script", req.PreScript); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	if err = validateScript("post_script", req.PostScript); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+
+	params := db.UpdateFolderParams{
+		ID:              folderID,
+		FollowRedirects: req.FollowRedirects,
+		PreScript:       req.PreScript,
+		PostScript:      req.PostScript,
+	}
 	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
 		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
 

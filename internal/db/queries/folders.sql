@@ -34,7 +34,9 @@ SET name = COALESCE(sqlc.narg(name), name),
     auth_basic_password = COALESCE(sqlc.narg(auth_basic_password), auth_basic_password),
     auth_api_key_name = COALESCE(sqlc.narg(auth_api_key_name), auth_api_key_name),
     auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
-    auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in)
+    auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in),
+    pre_script = COALESCE(sqlc.narg(pre_script), pre_script),
+    post_script = COALESCE(sqlc.narg(post_script), post_script)
 WHERE id = @id
 RETURNING *;
 

@@ -79,6 +79,11 @@ follow_redirects is the first; auth, proxy etc. follow the same pattern:
   switching back restores them. Auth types: inherit | none | bearer | basic |
   api_key; 'none' is explicit no-auth and STOPS the chain, while the end of an
   all-inherit chain is also no auth. Validated by parseAuthPatch (node_auth.go).
+- NOT this pattern: pre_script / post_script on folders and requests ACCUMULATE
+  (outer folder → … → request, all run) instead of inherit/override, so they
+  have no 'inherit' value and are plain text (≤ 32768 chars, validateScript).
+  Request scripts are in GET /requests/{id} but NOT the request list (large,
+  like headers/body); folder scripts ARE in the folder list. Client-run only.
 
 ## Secret variables
 The server stores a secret variable's key but NEVER its value — values live only

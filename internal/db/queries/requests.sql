@@ -45,6 +45,8 @@ SET name = COALESCE(sqlc.narg(name), name),
     auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
     auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in),
     response_filter = COALESCE(sqlc.narg(response_filter), response_filter),
+    pre_script = COALESCE(sqlc.narg(pre_script), pre_script),
+    post_script = COALESCE(sqlc.narg(post_script), post_script),
     updated_at = now()
 WHERE id = @id
 RETURNING *;
