@@ -30,14 +30,15 @@ type errorBody struct {
 // Error codes returned by the scaffold. Handlers should reuse these rather than
 // inventing strings at the call site.
 const (
-	codeBadRequest   = "bad_request"
-	codeUnauthorized = "unauthorized"
-	codeForbidden    = "forbidden"
-	codeNotFound     = "not_found"
-	codeConflict     = "conflict"
-	codeTooLarge     = "payload_too_large"
-	codeInternal     = "internal_error"
-	codeUnavailable  = "service_unavailable"
+	codeBadRequest      = "bad_request"
+	codeUnauthorized    = "unauthorized"
+	codeForbidden       = "forbidden"
+	codeNotFound        = "not_found"
+	codeConflict        = "conflict"
+	codeTooLarge        = "payload_too_large"
+	codeTooManyRequests = "too_many_requests"
+	codeInternal        = "internal_error"
+	codeUnavailable     = "service_unavailable"
 
 	messageInternal  = "the server encountered an unexpected problem"
 	messageDBUnready = "database is not reachable"
@@ -79,7 +80,13 @@ const (
 	messageVariableKeyTaken     = "a variable with that key already exists in this environment"
 	messageInvalidVariableType  = `type must be "regular" or "secret"`
 	messageRequestNotFound      = "request not found"
-	messageSecretValue          = "secret values are never stored on the server; keep them in the desktop client"
+
+	// messageWebhookNotFound also covers an endpoint in a project the caller
+	// cannot reach.
+	messageWebhookNotFound    = "webhook endpoint not found"
+	messageCaptureNotFound    = "capture not found"
+	messageHooksNotConfigured = "webhook capture is not configured on this server (HOOKS_DOMAINS)"
+	messageSecretValue        = "secret values are never stored on the server; keep them in the desktop client"
 
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"

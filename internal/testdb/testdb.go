@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,16 +25,27 @@ import (
 // duplicateDatabase is the SQLSTATE for "database already exists".
 const duplicateDatabase = "42P04"
 
-// connectTimeout keeps the skip path fast when no server is listening.
+// connectTimeout bounds how long the first test waits for an unreachable
+// server before failing.
 const connectTimeout = 5 * time.Second
+
+// unreachable remembers the first failure to reach the database server, so
+// every later test fails at once with the same message instead of waiting out
+// connectTimeout again.
+var (
+	unreachableMu sync.Mutex
+	unreachable   = map[string]error{}
+)
 
 // New returns a pool for a database dedicated to suffix, with every migration
 // applied and every table empty. Give each package its own suffix: `go test`
 // runs packages in parallel, and they would otherwise truncate each other.
 //
-// The test is skipped when DATABASE_URL is unset or no server answers, so the
-// suite still runs on a machine without Docker. `task test` loads .env, so
-// `task db:up` is enough to make these tests run.
+// With DATABASE_URL unset the test is skipped, so a bare `go test ./...` still
+// runs the unit tests on a machine without Docker. With DATABASE_URL set but
+// the server unreachable the test FAILS: a silently skipped database suite
+// looks exactly like a passing one. `task test` always sets DATABASE_URL, so
+// under task a stopped database is a loud failure, never a quiet skip.
 func New(t *testing.T, suffix string) *pgxpool.Pool {
 	t.Helper()
 
@@ -46,8 +58,18 @@ func New(t *testing.T, suffix string) *pgxpool.Pool {
 
 	ctx := t.Context()
 
+	unreachableMu.Lock()
+	earlier := unreachable[adminURL]
+	unreachableMu.Unlock()
+	if earlier != nil {
+		t.Fatalf("test database unreachable (%v); start it with `task db:up`, or unset DATABASE_URL to skip database tests", earlier)
+	}
+
 	if err = ensureDatabase(ctx, adminURL, name); err != nil {
-		t.Skipf("no test database available (%v); run `task db:up`", err)
+		unreachableMu.Lock()
+		unreachable[adminURL] = err
+		unreachableMu.Unlock()
+		t.Fatalf("test database unreachable (%v); start it with `task db:up`, or unset DATABASE_URL to skip database tests", err)
 	}
 
 	pool, err := pgxpool.New(ctx, testURL)
@@ -72,10 +94,11 @@ func New(t *testing.T, suffix string) *pgxpool.Pool {
 func envDatabaseURL(t *testing.T) string {
 	t.Helper()
 
-	// Read through the same variable the server uses; task test loads .env.
+	// Read through the same variable the server uses. Unset is the one case
+	// that skips: it means "no database intended", not "database down".
 	value := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if value == "" {
-		t.Skip("DATABASE_URL is not set; skipping database-backed test")
+		t.Skip("DATABASE_URL is not set; skipping database-backed test (`task test` sets it)")
 	}
 
 	return value

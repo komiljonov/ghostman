@@ -143,3 +143,31 @@ type User struct {
 	Name         string    `json:"name"`
 	CreatedAt    time.Time `json:"created_at"`
 }
+
+type WebhookCapture struct {
+	ID            int64           `json:"id"`
+	EndpointID    uuid.UUID       `json:"endpoint_id"`
+	Method        string          `json:"method"`
+	Path          string          `json:"path"`
+	Query         string          `json:"query"`
+	Headers       json.RawMessage `json:"headers"`
+	ContentType   string          `json:"content_type"`
+	Body          []byte          `json:"body"`
+	BodySize      int32           `json:"body_size"`
+	BodyTruncated bool            `json:"body_truncated"`
+	SourceIp      string          `json:"source_ip"`
+	ReceivedAt    time.Time       `json:"received_at"`
+}
+
+type WebhookEndpoint struct {
+	ID          uuid.UUID       `json:"id"`
+	ProjectID   uuid.UUID       `json:"project_id"`
+	Name        string          `json:"name"`
+	Slug        string          `json:"slug"`
+	Domain      string          `json:"domain"`
+	RespStatus  int32           `json:"resp_status"`
+	RespHeaders json.RawMessage `json:"resp_headers"`
+	RespBody    string          `json:"resp_body"`
+	CreatedBy   uuid.UUID       `json:"created_by"`
+	CreatedAt   time.Time       `json:"created_at"`
+}

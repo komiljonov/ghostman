@@ -31,6 +31,16 @@ type stubStore struct {
 
 	request    db.Request
 	requestErr error
+
+	webhook    db.WebhookEndpoint
+	webhookErr error
+}
+
+func (s stubStore) GetWebhookEndpointByID(_ context.Context, _ uuid.UUID) (db.WebhookEndpoint, error) {
+	if s.webhookErr != nil {
+		return db.WebhookEndpoint{}, s.webhookErr
+	}
+	return s.webhook, nil
 }
 
 func (s stubStore) GetRequestByID(_ context.Context, _ uuid.UUID) (db.Request, error) {
@@ -444,6 +454,44 @@ func TestRequireRequestAccess(t *testing.T) {
 			}
 			if errors.Is(err, ErrNoProjectAccess) {
 				t.Error("error reveals the project, and so that the request exists")
+			}
+		})
+	}
+}
+
+func TestRequireWebhookAccess(t *testing.T) {
+	projectID, endpointID, userID := uuid.New(), uuid.New(), uuid.New()
+	endpoint := db.WebhookEndpoint{ID: endpointID, ProjectID: projectID}
+	boom := errors.New("connection reset")
+
+	tests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing endpoint", store: stubStore{webhookErr: pgx.ErrNoRows}, wantErr: ErrNoWebhookAccess},
+		{name: "project out of reach", store: stubStore{webhook: endpoint, projectErr: pgx.ErrNoRows}, wantErr: ErrNoWebhookAccess},
+		{name: "database failure", store: stubStore{webhookErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{webhook: endpoint, project: db.GetProjectForUserRow{Project: db.Project{ID: projectID}}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireWebhookAccess(t.Context(), endpointID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireWebhookAccess() error: %v", err)
+				}
+				if got.ID != endpointID {
+					t.Errorf("endpoint id = %s, want %s", got.ID, endpointID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireWebhookAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoProjectAccess) {
+				t.Error("error reveals the project, and so that the endpoint exists")
 			}
 		})
 	}

@@ -107,7 +107,12 @@ tasks:
       - golangci-lint run ./...
 
   test:
-    desc: Run all tests
+    desc: Run all tests (fails if the test database is unreachable; start it with db:up)
+    # Always set, so database-backed tests can never skip silently under task:
+    # .env's value if present (a shell value overrides it), otherwise the
+    # docker-compose default. An unreachable database then FAILS the run.
+    env:
+      DATABASE_URL: '{{.DATABASE_URL | default "postgres://ghostman:ghostman@localhost:5432/ghostman?sslmode=disable"}}'
     cmds:
       - go test -count=1 ./...
 

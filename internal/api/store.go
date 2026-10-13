@@ -19,6 +19,7 @@ type Store interface {
 	FolderStore
 	EnvironmentStore
 	RequestStore
+	WebhookStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -124,6 +125,22 @@ type RequestStore interface {
 	CreateRequestInProject(ctx context.Context, arg db.CreateRequestParams) (db.Request, error)
 	MoveRequest(ctx context.Context, id uuid.UUID, folderID *uuid.UUID, sortOrder *int32) (db.Request, error)
 	ReorderRequests(ctx context.Context, projectID uuid.UUID, folderID *uuid.UUID, requestIDs []uuid.UUID, checkSiblings func([]uuid.UUID) error) error
+}
+
+// WebhookStore covers webhook endpoints and their captures.
+// CreateWebhookEndpointWithQuota and CaptureWebhook are transactional.
+type WebhookStore interface {
+	CreateWebhookEndpointWithQuota(ctx context.Context, arg db.CreateWebhookEndpointParams, maxEndpoints int64) (db.WebhookEndpoint, error)
+	GetWebhookEndpointByID(ctx context.Context, id uuid.UUID) (db.WebhookEndpoint, error)
+	GetWebhookEndpointBySlug(ctx context.Context, slug string) (db.WebhookEndpoint, error)
+	ListWebhookEndpointsByProject(ctx context.Context, projectID uuid.UUID) ([]db.WebhookEndpoint, error)
+	UpdateWebhookEndpoint(ctx context.Context, arg db.UpdateWebhookEndpointParams) (db.WebhookEndpoint, error)
+	DeleteWebhookEndpoint(ctx context.Context, id uuid.UUID) error
+
+	CaptureWebhook(ctx context.Context, arg db.InsertWebhookCaptureParams, keep int32) (int64, error)
+	ListWebhookCapturesAfter(ctx context.Context, arg db.ListWebhookCapturesAfterParams) ([]db.ListWebhookCapturesAfterRow, error)
+	GetWebhookCapture(ctx context.Context, arg db.GetWebhookCaptureParams) (db.WebhookCapture, error)
+	DeleteWebhookCaptures(ctx context.Context, endpointID uuid.UUID) error
 }
 
 // The real store must satisfy Store.

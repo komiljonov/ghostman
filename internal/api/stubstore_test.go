@@ -238,3 +238,43 @@ func (unimplementedTeamStore) MoveRequest(_ context.Context, _ uuid.UUID, _ *uui
 func (unimplementedTeamStore) ReorderRequests(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) CreateWebhookEndpointWithQuota(_ context.Context, _ db.CreateWebhookEndpointParams, _ int64) (db.WebhookEndpoint, error) {
+	return db.WebhookEndpoint{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetWebhookEndpointByID(_ context.Context, _ uuid.UUID) (db.WebhookEndpoint, error) {
+	return db.WebhookEndpoint{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetWebhookEndpointBySlug(_ context.Context, _ string) (db.WebhookEndpoint, error) {
+	return db.WebhookEndpoint{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListWebhookEndpointsByProject(_ context.Context, _ uuid.UUID) ([]db.WebhookEndpoint, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateWebhookEndpoint(_ context.Context, _ db.UpdateWebhookEndpointParams) (db.WebhookEndpoint, error) {
+	return db.WebhookEndpoint{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteWebhookEndpoint(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) CaptureWebhook(_ context.Context, _ db.InsertWebhookCaptureParams, _ int32) (int64, error) {
+	return 0, errStubbed
+}
+
+func (unimplementedTeamStore) ListWebhookCapturesAfter(_ context.Context, _ db.ListWebhookCapturesAfterParams) ([]db.ListWebhookCapturesAfterRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) GetWebhookCapture(_ context.Context, _ db.GetWebhookCaptureParams) (db.WebhookCapture, error) {
+	return db.WebhookCapture{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteWebhookCaptures(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}

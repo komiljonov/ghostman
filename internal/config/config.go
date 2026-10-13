@@ -32,6 +32,12 @@ type Config struct {
 
 	// LogLevel is one of debug, info, warn, error.
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
+
+	// HooksDomains are the webhook capture domains, in order: the first is
+	// the default shown for new endpoints. Normalised by Load (trimmed,
+	// lowercased, empties and duplicates dropped). Empty turns the capture
+	// feature off.
+	HooksDomains []string `env:"HOOKS_DOMAINS" envSeparator:","`
 }
 
 // Load reads the process environment into a Config and validates it.
@@ -44,7 +50,13 @@ func Load() (Config, error) {
 	cfg.Env = strings.ToLower(strings.TrimSpace(cfg.Env))
 	cfg.LogLevel = strings.ToLower(strings.TrimSpace(cfg.LogLevel))
 
-	if err := cfg.validate(); err != nil {
+	domains, err := normalizeHooksDomains(cfg.HooksDomains)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.HooksDomains = domains
+
+	if err = cfg.validate(); err != nil {
 		return Config{}, err
 	}
 
@@ -73,6 +85,28 @@ func (c Config) validate() error {
 	}
 
 	return nil
+}
+
+// normalizeHooksDomains trims and lowercases each HOOKS_DOMAINS entry, drops
+// empty entries and repeats (keeping the first, since order picks the
+// default), and refuses anything that is not a bare host name.
+func normalizeHooksDomains(raw []string) ([]string, error) {
+	domains := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+
+	for _, entry := range raw {
+		domain := strings.ToLower(strings.TrimSpace(entry))
+		if domain == "" || seen[domain] {
+			continue
+		}
+		if strings.ContainsAny(domain, "/ \t\r\n") {
+			return nil, fmt.Errorf("invalid HOOKS_DOMAINS entry %q: want a bare host name such as hook.example.com, without a scheme, path or spaces", entry)
+		}
+		seen[domain] = true
+		domains = append(domains, domain)
+	}
+
+	return domains, nil
 }
 
 // IsProd reports whether the server is running in its production profile.

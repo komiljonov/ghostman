@@ -17,8 +17,10 @@ func (a *api) routes() http.Handler {
 	// Public.
 	mux.HandleFunc("GET /healthz", a.handleHealthz)
 	mux.HandleFunc("GET /api/v1/hello", a.handleHello)
-	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
-	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
+	mux.HandleFunc("GET /api/v1/meta", a.handleMeta)
+	// Rate-limited per client IP: the only unauthenticated writes.
+	mux.HandleFunc("POST /api/v1/auth/register", a.rateLimitByIP(a.registerLimiter, a.handleRegister))
+	mux.HandleFunc("POST /api/v1/auth/login", a.rateLimitByIP(a.loginLimiter, a.handleLogin))
 
 	// Authenticated. Paths stay flat: no resource is nested under another.
 	mux.Handle("POST /api/v1/auth/logout", a.requireAuth(http.HandlerFunc(a.handleLogout)))
@@ -92,16 +94,34 @@ func (a *api) routes() http.Handler {
 	// member nor any single project on its own.
 	mux.Handle("PUT /api/v1/teams/{team_id}/members/{user_id}/access", a.requireAuth(http.HandlerFunc(a.handleSetMemberAccess)))
 
+	// Webhook endpoints are managed here; the capturing itself happens only on
+	// the capture hosts (withCapture), never on this router.
+	mux.Handle("POST /api/v1/projects/{project_id}/webhooks", a.requireAuth(http.HandlerFunc(a.handleCreateWebhook)))
+	mux.Handle("GET /api/v1/projects/{project_id}/webhooks", a.requireAuth(http.HandlerFunc(a.handleListWebhooks)))
+	mux.Handle("GET /api/v1/webhooks/{id}", a.requireAuth(http.HandlerFunc(a.handleGetWebhook)))
+	mux.Handle("PATCH /api/v1/webhooks/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateWebhook)))
+	mux.Handle("DELETE /api/v1/webhooks/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteWebhook)))
+	mux.Handle("GET /api/v1/webhooks/{id}/captures", a.requireAuth(http.HandlerFunc(a.handleListCaptures)))
+	mux.Handle("DELETE /api/v1/webhooks/{id}/captures", a.requireAuth(http.HandlerFunc(a.handleClearCaptures)))
+	// Two levels deep, a documented exception: a capture id is only
+	// meaningful within its endpoint, and the endpoint carries the access
+	// check.
+	mux.Handle("GET /api/v1/webhooks/{id}/captures/{capture_id}", a.requireAuth(http.HandlerFunc(a.handleGetCapture)))
+
 	// Catch-all so unknown paths get the JSON error envelope instead of
 	// ServeMux's plain-text 404.
 	mux.HandleFunc("/", a.handleNotFound)
 
-	return chain(mux,
+	apiHandler := chain(mux,
 		a.recoverPanics,
 		a.withCORS,
 		a.logRequests,
 		a.limitRequestBody,
 	)
+
+	// Capture hosts are switched off before any of the API middleware runs;
+	// without HOOKS_DOMAINS this returns apiHandler as is.
+	return a.withCapture(apiHandler)
 }
 
 // healthResponse is the /healthz body, with the version of the running binary.

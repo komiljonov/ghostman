@@ -10,7 +10,7 @@ import (
 const testDatabaseURL = "postgres://user:pass@localhost:5432/ghostman?sslmode=disable"
 
 // configVars is every variable Load reads.
-var configVars = []string{"DATABASE_URL", "ENV", "PORT", "LOG_LEVEL"}
+var configVars = []string{"DATABASE_URL", "ENV", "PORT", "LOG_LEVEL", "HOOKS_DOMAINS"}
 
 // clearEnv removes the config variables for the duration of the test, so the
 // results do not depend on the caller's environment. `task test` loads .env, so
@@ -125,6 +125,46 @@ func TestLoadInvalid(t *testing.T) {
 
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("Load() error = %q, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadHooksDomains(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []string
+		wantErr string
+	}{
+		{name: "unset is off", raw: "", want: []string{}},
+		{name: "order kept, first is the default", raw: "ear.ghostman.uz,hook.ghostman.uz", want: []string{"ear.ghostman.uz", "hook.ghostman.uz"}},
+		{name: "trimmed and lowercased", raw: "  Ear.Ghostman.UZ , HOOK.ghostman.uz ", want: []string{"ear.ghostman.uz", "hook.ghostman.uz"}},
+		{name: "empty entries and repeats dropped", raw: "a.test,,a.test, ,b.test", want: []string{"a.test", "b.test"}},
+		{name: "scheme or path refused", raw: "https://hook.test", wantErr: "invalid HOOKS_DOMAINS entry"},
+		{name: "inner whitespace refused", raw: "hook .test", wantErr: "invalid HOOKS_DOMAINS entry"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("DATABASE_URL", testDatabaseURL)
+			if tt.raw != "" {
+				t.Setenv("HOOKS_DOMAINS", tt.raw)
+			}
+
+			cfg, err := Load()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Load() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load() error: %v", err)
+			}
+			if strings.Join(cfg.HooksDomains, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("HooksDomains = %q, want %q", cfg.HooksDomains, tt.want)
 			}
 		})
 	}

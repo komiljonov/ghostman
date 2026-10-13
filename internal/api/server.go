@@ -11,6 +11,7 @@ import (
 
 	"github.com/komiljonov/ghostman/internal/authz"
 	"github.com/komiljonov/ghostman/internal/config"
+	"github.com/komiljonov/ghostman/internal/ratelimit"
 )
 
 // Server timeouts. ReadHeaderTimeout in particular guards against slowloris.
@@ -38,6 +39,15 @@ type api struct {
 	store  Store
 	authz  *authz.Checker
 	build  BuildInfo
+
+	// hooksDomains are the webhook capture domains, first = default. Empty
+	// means no capture routing is mounted.
+	hooksDomains []string
+
+	// Rate limiters. nil disables a limiter, which handler tests rely on.
+	loginLimiter    *ratelimit.Limiter // per client IP
+	registerLimiter *ratelimit.Limiter // per client IP
+	captureLimiter  *ratelimit.Limiter // per webhook slug
 }
 
 // NewServer builds a fully configured *http.Server. The caller owns its
@@ -49,6 +59,12 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, store
 		store:  store,
 		authz:  authz.New(store),
 		build:  build,
+
+		hooksDomains: cfg.HooksDomains,
+
+		loginLimiter:    ratelimit.PerMinute(authAttemptsPerMinute, authAttemptsBurst),
+		registerLimiter: ratelimit.PerMinute(authAttemptsPerMinute, authAttemptsBurst),
+		captureLimiter:  ratelimit.New(captureRequestsPerSecond, captureRequestsBurst),
 	}
 
 	return &http.Server{
