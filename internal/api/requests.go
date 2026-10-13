@@ -56,6 +56,8 @@ type requestUpdateRequest struct {
 	FollowRedirects *string         `json:"follow_redirects"`
 	Auth            json.RawMessage `json:"auth"`
 	ResponseFilter  *string         `json:"response_filter"`
+	PreScript       *string         `json:"pre_script"`
+	PostScript      *string         `json:"post_script"`
 }
 
 type requestMoveRequest struct {
@@ -100,6 +102,11 @@ type requestDetailResponse struct {
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
 	Body        json.RawMessage `json:"body"`
+
+	// Scripts can be large, so like headers and body they are only here, not
+	// in the project's request list.
+	PreScript  string `json:"pre_script"`
+	PostScript string `json:"post_script"`
 }
 
 func newRequestDetailResponse(request db.Request) requestDetailResponse {
@@ -108,6 +115,8 @@ func newRequestDetailResponse(request db.Request) requestDetailResponse {
 		Headers:         request.Headers,
 		QueryParams:     request.QueryParams,
 		Body:            request.Body,
+		PreScript:       request.PreScript,
+		PostScript:      request.PostScript,
 	}
 }
 
@@ -324,10 +333,21 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	params.ResponseFilter = req.ResponseFilter
 
+	if err = validateScript("pre_script", req.PreScript); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	if err = validateScript("post_script", req.PostScript); err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	params.PreScript, params.PostScript = req.PreScript, req.PostScript
+
 	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
-		req.ResponseFilter == nil && params.Headers == nil && params.QueryParams == nil && params.Body == nil {
+		req.ResponseFilter == nil && req.PreScript == nil && req.PostScript == nil &&
+		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth or response_filter")
+			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth, response_filter, pre_script or post_script")
 		return
 	}
 

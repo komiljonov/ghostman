@@ -95,7 +95,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
 | POST   | `/api/v1/projects/{project_id}/folders` | bearer | Project access. `{name, parent_id?}` → `201`; appended after its siblings. `400` if the parent is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/folders` | bearer | Project access. Every folder as a flat list `[{id, parent_id, name, sort_order, created_at}]`. |
-| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?, auth?}` → `200`; partial update. |
+| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?, auth?, pre_script?, post_script?}` → `200`; partial update. |
 | POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
 | PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
 | DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
@@ -112,7 +112,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
 | GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -347,6 +347,34 @@ can open the project. Put the credential in a **secret variable** (whose value
 never leaves the desktop client) and reference it: `"bearer_token":
 "{{api_token}}"`. The client substitutes `{{variables}}` at send time; the
 server never resolves them.
+
+## Scripts
+
+Folders and requests each have a `pre_script` and a `post_script`: JavaScript
+that the **client** runs before and after sending a request. The server stores
+the text and nothing more — it never runs or parses it, so a script with a
+syntax error is stored as written.
+
+Scripts **accumulate**; they do not cascade like `auth` and
+`follow_redirects`. There is no `inherit` and nothing to override: every
+folder's script runs for every request beneath it, outermost folder first, then
+each inner folder, then the request's own. For a request in `API / Users`:
+
+```
+pre:  API.pre_script → Users.pre_script → request.pre_script → (send)
+post: API.post_script → Users.post_script → request.post_script
+```
+
+An empty script simply adds nothing; it does not stop the chain.
+
+- Set with `PATCH /folders/{id}` or `PATCH /requests/{id}`: absent (or `null`)
+  leaves a script unchanged, `""` clears it, and each is limited to 32768
+  characters (`400` beyond that). New folders and requests start with none.
+- A request's scripts are in `GET /requests/{id}` (and its `PATCH` response)
+  but **not** in the project's request list — like headers and body, they can
+  be large.
+- A folder's scripts **are** in the project's folder list, so the client has
+  the whole chain at send time without extra calls.
 
 ## Environments
 

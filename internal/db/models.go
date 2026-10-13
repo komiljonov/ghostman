@@ -53,6 +53,10 @@ type Folder struct {
 	AuthApiKeyName    string `json:"auth_api_key_name"`
 	AuthApiKeyValue   string `json:"auth_api_key_value"`
 	AuthApiKeyIn      string `json:"auth_api_key_in"`
+	// JavaScript run by the client before every send of a request under this folder, outer folders first. Accumulates, does not override. Stored only.
+	PreScript string `json:"pre_script"`
+	// JavaScript run by the client after every send of a request under this folder, outer folders first. Accumulates, does not override. Stored only.
+	PostScript string `json:"post_script"`
 }
 
 type Project struct {
@@ -95,6 +99,10 @@ type Request struct {
 	AuthApiKeyIn      string `json:"auth_api_key_in"`
 	// jq query the client applies to response bodies for display; empty = no filter. Opaque to the server, not validated.
 	ResponseFilter string `json:"response_filter"`
+	// JavaScript run by the client before a send. Accumulates: outer folder scripts first, then the request's own (not inherit/override). Stored only, never executed by the server.
+	PreScript string `json:"pre_script"`
+	// JavaScript run by the client after a send. Accumulates: outer folder scripts first, then the request's own (not inherit/override). Stored only, never executed by the server.
+	PostScript string `json:"post_script"`
 }
 
 type Session struct {

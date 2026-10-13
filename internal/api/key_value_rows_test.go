@@ -16,6 +16,8 @@ type requestDetail struct {
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
 	Body        json.RawMessage `json:"body"`
+	PreScript   string          `json:"pre_script"`
+	PostScript  string          `json:"post_script"`
 }
 
 func (f teamsFixture) getRequestDetail(t *testing.T, token, requestID string) requestDetail {
