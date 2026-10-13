@@ -523,6 +523,10 @@ exactly like a missing id.
 { "type": "none" }
 { "type": "raw", "content_type": "application/json", "content": "{\"id\": {{id}}}" }
 { "type": "form", "fields": [{ "key": "user", "value": "{{user}}", "enabled": true }] }
+{ "type": "multipart", "fields": [
+    { "key": "note",   "kind": "text", "value": "{{msg}}",       "enabled": true },
+    { "key": "avatar", "kind": "file", "file_name": "me.png",    "enabled": true }
+] }
 ```
 
 - Each variant has exactly those fields; anything missing or extra is `400`,
@@ -535,8 +539,23 @@ exactly like a missing id.
   `content` is any string up to 1 MiB (counted in bytes), possibly empty. The
   content is **not** checked against its content type — a half-typed JSON body
   is the user's business, and warning about it is the client's.
-- `form`: `fields` follows exactly the header/query parameter row rules above.
-- File and multipart bodies are deliberately not synced.
+- `form` (`application/x-www-form-urlencoded`): `fields` follows exactly the
+  header/query parameter row rules above.
+- `multipart` (`multipart/form-data`): the same row limits (at most 100 rows,
+  `key` non-empty up to 200 characters, duplicates allowed, order kept), but
+  each row has a `kind` with its own exact fields:
+  - `"text"`: `key`, `kind`, `value` (a string up to 8192 characters, may hold
+    `{{variables}}`), `enabled`;
+  - `"file"`: `key`, `kind`, `file_name`, `enabled`. `file_name` is a **display
+    name only** (up to 255 characters, may be `""` before a file is picked) —
+    never the file's content or its path.
+
+  A field of the other kind (a `value` on a file row, a `file_name` on a text
+  row) is a `400` naming the row, e.g. `body.fields[1].value is not a known
+  field for a "file" row`.
+- **File bytes and paths never reach the server.** They stay in the desktop
+  client, like secret variable values; the server syncs only which fields a
+  multipart body has and the names to show for them.
 
 ## Testing
 
@@ -685,8 +704,9 @@ full documented list.
 
 ## Not implemented yet
 
-Sync and every other product table. Requests have no file or multipart bodies,
-no per-request auth, history or duplication, and are never
+Sync and every other product table. Request bodies never carry file contents
+(multipart file fields hold only a display name), requests have no history or
+duplication, and they are never
 executed by the server (sending them is the client's job). Auth covers only
 registration, login, logout and `/me`: there is no password reset, email
 verification, session listing or refresh yet.
