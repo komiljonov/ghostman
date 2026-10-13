@@ -35,7 +35,9 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 7. requests — leaves of the folder tree via nullable folder_id, NULL = root
    - 7a: name/method/url/folder/order
    - 7b: headers + query_params writable (one shared {key, value, enabled} row validator)
-   - 7c: body writable (tagged union none|raw|form; form reuses the row validator)
+   - 7c: body writable (tagged union none|raw|form|multipart; form reuses the row validator;
+     multipart rows are kind text|file, file rows carry a DISPLAY name only — file
+     bytes and paths are client-local, never stored, like secret values)
 
 Anything beyond this is new design work: do not invent product tables or
 endpoints without discussion. Start from the backlog below.
@@ -53,8 +55,7 @@ endpoints without discussion. Start from the backlog below.
 - Teams: ownership transfer, roles, invitation email delivery, invitation expiry
 - Moving projects between teams (access rows vs destination team is unresolved)
 - Duplication of projects, folders and requests; cross-project moves of folders/requests
-- Requests: file/multipart bodies (client-local by design for now), per-request
-  auth config, request history
+- Requests: request history (auth config and multipart bodies are done)
 - Variable history
 - Ops before public exposure: lock down CORS (currently *). (Login/register rate limiting is done.)
 - Cleanups: make project/folder reorder 0-based; drop the redundant

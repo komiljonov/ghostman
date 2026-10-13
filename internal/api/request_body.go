@@ -12,17 +12,20 @@ import (
 //	{"type": "none"}
 //	{"type": "raw", "content_type": "...", "content": "..."}
 //	{"type": "form", "fields": [{"key", "value", "enabled"}, ...]}
+//	{"type": "multipart", "fields": [{"key", "kind": "text"|"file", ...}, ...]}
 //
 // Each variant has an exact set of fields, like a key/value row. The server
 // does not check content against content_type: a raw body labelled JSON that
 // does not parse may simply be mid-edit, and warning about it is the client's
-// job. File and multipart bodies are deliberately not synced.
+// job. "form" is urlencoded; "multipart" may name files, but only by display
+// name: file bytes and paths stay on the client (multipart_rows.go).
 
 // Request body variants.
 const (
-	bodyTypeNone = "none"
-	bodyTypeRaw  = "raw"
-	bodyTypeForm = "form"
+	bodyTypeNone      = "none"
+	bodyTypeRaw       = "raw"
+	bodyTypeForm      = "form"
+	bodyTypeMultipart = "multipart"
 )
 
 // Bounds for a raw body.
@@ -32,13 +35,14 @@ const (
 )
 
 // bodyTypes lists the variants in the order error messages name them.
-var bodyTypes = []string{bodyTypeNone, bodyTypeRaw, bodyTypeForm}
+var bodyTypes = []string{bodyTypeNone, bodyTypeRaw, bodyTypeForm, bodyTypeMultipart}
 
 // bodyFields is the exact field set of each variant.
 var bodyFields = map[string][]string{
-	bodyTypeNone: {"type"},
-	bodyTypeRaw:  {"type", "content_type", "content"},
-	bodyTypeForm: {"type", "fields"},
+	bodyTypeNone:      {"type"},
+	bodyTypeRaw:       {"type", "content_type", "content"},
+	bodyTypeForm:      {"type", "fields"},
+	bodyTypeMultipart: {"type", "fields"},
 }
 
 // The stored shapes. Validated bodies are re-encoded from these, so nothing
@@ -99,6 +103,9 @@ func parseRequestBody(raw json.RawMessage) (json.RawMessage, error) {
 
 	case bodyTypeForm:
 		body, err = parseFormBody(fields)
+
+	case bodyTypeMultipart:
+		body, err = parseMultipartBody(fields)
 	}
 	if err != nil {
 		return nil, err
@@ -176,4 +183,19 @@ func parseFormBody(fields map[string]json.RawMessage) (formBody, error) {
 	}
 
 	return formBody{Type: bodyTypeForm, Fields: rows}, nil
+}
+
+func parseMultipartBody(fields map[string]json.RawMessage) (formBody, error) {
+	rawFields, ok := fields["fields"]
+	if !ok {
+		return formBody{}, fmt.Errorf("body.fields is required")
+	}
+
+	rows, err := parseMultipartRows(rawFields, "body.fields")
+	if err != nil {
+		return formBody{}, err
+	}
+
+	// Same stored shape as a form body: a type and its validated fields.
+	return formBody{Type: bodyTypeMultipart, Fields: rows}, nil
 }
