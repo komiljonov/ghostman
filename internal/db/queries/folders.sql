@@ -36,7 +36,9 @@ SET name = COALESCE(sqlc.narg(name), name),
     auth_api_key_value = COALESCE(sqlc.narg(auth_api_key_value), auth_api_key_value),
     auth_api_key_in = COALESCE(sqlc.narg(auth_api_key_in), auth_api_key_in),
     pre_script = COALESCE(sqlc.narg(pre_script), pre_script),
-    post_script = COALESCE(sqlc.narg(post_script), post_script)
+    post_script = COALESCE(sqlc.narg(post_script), post_script),
+    proxy_mode = COALESCE(sqlc.narg(proxy_mode), proxy_mode),
+    proxy_id = CASE WHEN @set_proxy::boolean THEN sqlc.narg(proxy_id)::uuid ELSE proxy_id END
 WHERE id = @id
 RETURNING *;
 

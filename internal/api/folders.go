@@ -39,6 +39,7 @@ type folderUpdateRequest struct {
 	Auth            json.RawMessage `json:"auth"`
 	PreScript       *string         `json:"pre_script"`
 	PostScript      *string         `json:"post_script"`
+	Proxy           json.RawMessage `json:"proxy"`
 }
 
 type folderMoveRequest struct {
@@ -57,30 +58,32 @@ type folderOrderRequest struct {
 // folderResponse is the full shape, used wherever a single folder is the
 // subject of the request. parent_id is null at the project root.
 type folderResponse struct {
-	ID              string           `json:"id"`
-	ProjectID       string           `json:"project_id"`
-	ParentID        *string          `json:"parent_id"`
-	Name            string           `json:"name"`
-	FollowRedirects string           `json:"follow_redirects"`
-	Auth            nodeAuthResponse `json:"auth"`
-	PreScript       string           `json:"pre_script"`
-	PostScript      string           `json:"post_script"`
-	SortOrder       int32            `json:"sort_order"`
-	CreatedAt       time.Time        `json:"created_at"`
+	ID              string            `json:"id"`
+	ProjectID       string            `json:"project_id"`
+	ParentID        *string           `json:"parent_id"`
+	Name            string            `json:"name"`
+	FollowRedirects string            `json:"follow_redirects"`
+	Auth            nodeAuthResponse  `json:"auth"`
+	PreScript       string            `json:"pre_script"`
+	PostScript      string            `json:"post_script"`
+	Proxy           nodeProxyResponse `json:"proxy"`
+	SortOrder       int32             `json:"sort_order"`
+	CreatedAt       time.Time         `json:"created_at"`
 }
 
 // folderSummaryResponse is one entry of a project's flat folder list. The
 // project is implied by the request path, so it is not repeated.
 type folderSummaryResponse struct {
-	ID              string           `json:"id"`
-	ParentID        *string          `json:"parent_id"`
-	Name            string           `json:"name"`
-	FollowRedirects string           `json:"follow_redirects"`
-	Auth            nodeAuthResponse `json:"auth"`
-	PreScript       string           `json:"pre_script"`
-	PostScript      string           `json:"post_script"`
-	SortOrder       int32            `json:"sort_order"`
-	CreatedAt       time.Time        `json:"created_at"`
+	ID              string            `json:"id"`
+	ParentID        *string           `json:"parent_id"`
+	Name            string            `json:"name"`
+	FollowRedirects string            `json:"follow_redirects"`
+	Auth            nodeAuthResponse  `json:"auth"`
+	PreScript       string            `json:"pre_script"`
+	PostScript      string            `json:"post_script"`
+	Proxy           nodeProxyResponse `json:"proxy"`
+	SortOrder       int32             `json:"sort_order"`
+	CreatedAt       time.Time         `json:"created_at"`
 }
 
 // badRequestError marks a validation failure raised inside a store
@@ -100,6 +103,7 @@ func newFolderResponse(folder db.Folder) folderResponse {
 			folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
 		PreScript:  folder.PreScript,
 		PostScript: folder.PostScript,
+		Proxy:      newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
 		SortOrder:  folder.SortOrder,
 		CreatedAt:  folder.CreatedAt,
 	}
@@ -189,6 +193,7 @@ func (a *api) handleListFolders(w http.ResponseWriter, r *http.Request) {
 				folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
 			PreScript:  folder.PreScript,
 			PostScript: folder.PostScript,
+			Proxy:      newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
 			SortOrder:  folder.SortOrder,
 			CreatedAt:  folder.CreatedAt,
 		})
@@ -197,7 +202,8 @@ func (a *api) handleListFolders(w http.ResponseWriter, r *http.Request) {
 	a.writeJSON(w, r, http.StatusOK, folders)
 }
 
-// handleUpdateFolder updates a folder's name and/or follow_redirects.
+// handleUpdateFolder applies a partial update to a folder's name and its
+// per-node settings.
 func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 	user, ok := a.authenticatedUser(w, r)
 	if !ok {
@@ -209,13 +215,14 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := a.authz.RequireFolderAccess(r.Context(), folderID, user.ID); err != nil {
+	current, err := a.authz.RequireFolderAccess(r.Context(), folderID, user.ID)
+	if err != nil {
 		a.writeAuthzError(w, r, err)
 		return
 	}
 
 	var req folderUpdateRequest
-	if err := readJSON(w, r, &req); err != nil {
+	if err = readJSON(w, r, &req); err != nil {
 		a.writeBodyError(w, r, err)
 		return
 	}
@@ -226,9 +233,20 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == nil && req.FollowRedirects == nil && auth == nil && req.PreScript == nil && req.PostScript == nil {
+	proxy, err := parseProxyPatch(req.Proxy)
+	if err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+
+	if req.Name == nil && req.FollowRedirects == nil && auth == nil && req.PreScript == nil && req.PostScript == nil && proxy == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, follow_redirects, auth, pre_script or post_script")
+			"provide at least one of name, follow_redirects, auth, pre_script, post_script or proxy")
+		return
+	}
+
+	if err = a.requireProxyInProject(r.Context(), proxy, current.ProjectID); err != nil {
+		a.writeFolderError(w, r, err)
 		return
 	}
 
@@ -249,6 +267,7 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
 		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
+	params.ProxyMode, params.SetProxy, params.ProxyID = proxy.values()
 
 	if req.Name != nil {
 		name, nameErr := validateName(*req.Name, minFolderNameLength, maxFolderNameLength)
@@ -409,6 +428,10 @@ func (a *api) writeFolderError(w http.ResponseWriter, r *http.Request, err error
 	var badRequest badRequestError
 
 	switch {
+	case errors.Is(err, errProxyNotInProject), db.IsProxyGone(err):
+		// A proxy of another project, or one deleted before the write landed.
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, errProxyNotInProject.Error())
+
 	case errors.As(err, &badRequest):
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, badRequest.Error())
 

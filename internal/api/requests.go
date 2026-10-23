@@ -58,6 +58,7 @@ type requestUpdateRequest struct {
 	ResponseFilter  *string         `json:"response_filter"`
 	PreScript       *string         `json:"pre_script"`
 	PostScript      *string         `json:"post_script"`
+	Proxy           json.RawMessage `json:"proxy"`
 }
 
 type requestMoveRequest struct {
@@ -88,10 +89,11 @@ type requestResponse struct {
 	Auth            nodeAuthResponse `json:"auth"`
 	// ResponseFilter is a jq query the client applies to response bodies;
 	// opaque to the server.
-	ResponseFilter string    `json:"response_filter"`
-	SortOrder      int32     `json:"sort_order"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ResponseFilter string            `json:"response_filter"`
+	Proxy          nodeProxyResponse `json:"proxy"`
+	SortOrder      int32             `json:"sort_order"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 // requestDetailResponse is the full request, returned by GET and PATCH on
@@ -132,6 +134,7 @@ func newRequestResponse(request db.Request) requestResponse {
 		Auth: newNodeAuthResponse(request.AuthType, request.AuthBearerToken, request.AuthBasicUsername, request.AuthBasicPassword,
 			request.AuthApiKeyName, request.AuthApiKeyValue, request.AuthApiKeyIn),
 		ResponseFilter: request.ResponseFilter,
+		Proxy:          newNodeProxyResponse(request.ProxyMode, request.ProxyID),
 		SortOrder:      request.SortOrder,
 		CreatedAt:      request.CreatedAt,
 		UpdatedAt:      request.UpdatedAt,
@@ -239,6 +242,7 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 			Auth: newNodeAuthResponse(row.AuthType, row.AuthBearerToken, row.AuthBasicUsername, row.AuthBasicPassword,
 				row.AuthApiKeyName, row.AuthApiKeyValue, row.AuthApiKeyIn),
 			ResponseFilter: row.ResponseFilter,
+			Proxy:          newNodeProxyResponse(row.ProxyMode, row.ProxyID),
 			SortOrder:      row.SortOrder,
 			CreatedAt:      row.CreatedAt,
 			UpdatedAt:      row.UpdatedAt,
@@ -283,8 +287,9 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := a.authz.RequireRequestAccess(r.Context(), requestID, user.ID); err != nil {
-		a.writeAuthzError(w, r, err)
+	current, accessErr := a.authz.RequireRequestAccess(r.Context(), requestID, user.ID)
+	if accessErr != nil {
+		a.writeAuthzError(w, r, accessErr)
 		return
 	}
 
@@ -343,11 +348,22 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	params.PreScript, params.PostScript = req.PreScript, req.PostScript
 
+	proxy, err := parseProxyPatch(req.Proxy)
+	if err != nil {
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	if err = a.requireProxyInProject(r.Context(), proxy, current.ProjectID); err != nil {
+		a.writeRequestError(w, r, err)
+		return
+	}
+	params.ProxyMode, params.SetProxy, params.ProxyID = proxy.values()
+
 	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
-		req.ResponseFilter == nil && req.PreScript == nil && req.PostScript == nil &&
+		req.ResponseFilter == nil && req.PreScript == nil && req.PostScript == nil && proxy == nil &&
 		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth, response_filter, pre_script or post_script")
+			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth, response_filter, pre_script, post_script or proxy")
 		return
 	}
 
@@ -519,6 +535,10 @@ func (a *api) writeRequestError(w http.ResponseWriter, r *http.Request, err erro
 	var badRequest badRequestError
 
 	switch {
+	case errors.Is(err, errProxyNotInProject), db.IsProxyGone(err):
+		// A proxy of another project, or one deleted before the write landed.
+		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, errProxyNotInProject.Error())
+
 	case errors.As(err, &badRequest):
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, badRequest.Error())
 

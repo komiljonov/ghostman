@@ -104,7 +104,7 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/teams/{team_id}/members/{user_id}/access` | bearer | Team owner only. `{all_projects, project_ids}`. |
 | POST   | `/api/v1/projects/{project_id}/folders` | bearer | Project access. `{name, parent_id?}` → `201`; appended after its siblings. `400` if the parent is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/folders` | bearer | Project access. Every folder as a flat list `[{id, parent_id, name, sort_order, created_at}]`. |
-| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?, auth?, pre_script?, post_script?}` → `200`; partial update. |
+| PATCH  | `/api/v1/folders/{id}`   | bearer | Project access. `{name?, follow_redirects?, auth?, pre_script?, post_script?, proxy?}` → `200`; partial update. |
 | POST   | `/api/v1/folders/{id}/move` | bearer | Project access. `{parent_id, sort_order?}` → `200`; `parent_id: null` is the root. `400` on a cycle or another project's parent. |
 | PUT    | `/api/v1/folders/order`  | bearer | Project access. `{project_id, parent_id, folder_ids}`; `folder_ids` must be exactly that parent's children. `204`. |
 | DELETE | `/api/v1/folders/{id}`   | bearer | Project access. `204`; the whole subtree goes with it. |
@@ -118,10 +118,16 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PATCH  | `/api/v1/variables/{id}` | bearer | Project access. `{key?, type?, value?}` → `200`. Making a variable secret discards its value. |
 | DELETE | `/api/v1/variables/{id}` | bearer | Project access. `204`. |
 | PUT    | `/api/v1/variables/order` | bearer | Project access. `{environment_id, variable_ids}` must list every variable of the environment. `204`. |
+| POST   | `/api/v1/projects/{project_id}/proxies` | bearer | Project access. `{name, proxy_type?, host, port, username?, bypass?}` → `201`. `409` if the name is taken in the project (case-insensitive). |
+| GET    | `/api/v1/projects/{project_id}/proxies` | bearer | Project access. The project's proxies in order. |
+| GET    | `/api/v1/proxies/{id}`    | bearer | Project access. |
+| PATCH  | `/api/v1/proxies/{id}`    | bearer | Project access. Partial update of any proxy field. |
+| DELETE | `/api/v1/proxies/{id}`    | bearer | Project access. `204`; folders and requests using it keep mode `proxy` with `proxy_id: null`. |
+| PUT    | `/api/v1/proxies/order`   | bearer | Project access. `{project_id, proxy_ids}` must list every proxy of the project. `204`. |
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
 | GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?, proxy?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
@@ -153,7 +159,7 @@ Deliberate exceptions: `DELETE /teams/{team_id}/members/{user_id}`,
 `PUT /teams/{team_id}/members/{user_id}/access`,
 `PUT /teams/{team_id}/projects/order`, and `PUT /folders/order`, which takes its
 scope in the body because the parent being reordered may be the project root.
-`PUT /environments/order`, `PUT /variables/order` and `PUT /requests/order`
+`PUT /environments/order`, `PUT /variables/order`, `PUT /requests/order` and `PUT /proxies/order`
 follow the same body-scoped shape.
 
 ## Authentication
@@ -357,6 +363,43 @@ can open the project. Put the credential in a **secret variable** (whose value
 never leaves the desktop client) and reference it: `"bearer_token":
 "{{api_token}}"`. The client substitutes `{{variables}}` at send time; the
 server never resolves them.
+
+### Proxies
+
+Proxies are per-project objects, like environments: a name (unique per
+project, ignoring case), `proxy_type` (`http`, the default, `https` or
+`socks5`), `host` (up to 255 characters), `port` (1–65535), an optional
+`username` and `bypass` — a comma-separated list of host patterns that go
+direct, such as `localhost, *.internal.uz`, matched by the client. Anyone who
+can reach the project can manage them, and `PUT /proxies/order` sets their
+order (0-based).
+
+**A proxy's password is never stored on the server.** Like secret variable
+values, it lives only in the desktop client; there is no field for it, and
+sending one is a `400`.
+
+Folders and requests choose a proxy with the third cascading setting, `proxy`:
+
+```json
+{ "mode": "proxy", "proxy_id": "6c1f…" }
+```
+
+| `mode`    | Meaning                                                                 |
+| --------- | ----------------------------------------------------------------------- |
+| `inherit` | Use the parent folder's setting, up the chain to the client's global default. The default. |
+| `global`  | Skip all ancestors and use the client's global default.                 |
+| `none`    | Go direct, no proxy. Like auth's `none`, this **stops** the chain.      |
+| `proxy`   | Use the proxy `proxy_id`, which must be a proxy of the same project.    |
+
+Set it with `PATCH /folders/{id}` or `PATCH /requests/{id}`. `proxy_id` is
+required with `proxy` and must be null or absent with every other mode (the
+server stores null). A proxy of another project — or one that does not exist —
+is a `400`. It is returned in the folder list, the request list and
+`GET /requests/{id}`.
+
+Deleting a proxy does **not** rewrite the nodes that use it: they keep
+`mode: "proxy"` with `proxy_id: null`, and the client resolves such a node as
+`inherit`. Choosing another proxy, or another mode, is left to the user.
 
 ## Webhook capture
 

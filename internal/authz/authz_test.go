@@ -34,6 +34,16 @@ type stubStore struct {
 
 	webhook    db.WebhookEndpoint
 	webhookErr error
+
+	proxy    db.Proxy
+	proxyErr error
+}
+
+func (s stubStore) GetProxyByID(_ context.Context, _ uuid.UUID) (db.Proxy, error) {
+	if s.proxyErr != nil {
+		return db.Proxy{}, s.proxyErr
+	}
+	return s.proxy, nil
 }
 
 func (s stubStore) GetWebhookEndpointByID(_ context.Context, _ uuid.UUID) (db.WebhookEndpoint, error) {
@@ -492,6 +502,44 @@ func TestRequireWebhookAccess(t *testing.T) {
 			}
 			if errors.Is(err, ErrNoProjectAccess) {
 				t.Error("error reveals the project, and so that the endpoint exists")
+			}
+		})
+	}
+}
+
+func TestRequireProxyAccess(t *testing.T) {
+	projectID, proxyID, userID := uuid.New(), uuid.New(), uuid.New()
+	proxy := db.Proxy{ID: proxyID, ProjectID: projectID}
+	boom := errors.New("connection reset")
+
+	tests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing proxy", store: stubStore{proxyErr: pgx.ErrNoRows}, wantErr: ErrNoProxyAccess},
+		{name: "project out of reach", store: stubStore{proxy: proxy, projectErr: pgx.ErrNoRows}, wantErr: ErrNoProxyAccess},
+		{name: "database failure", store: stubStore{proxyErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{proxy: proxy, project: db.GetProjectForUserRow{Project: db.Project{ID: projectID}}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireProxyAccess(t.Context(), proxyID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireProxyAccess() error: %v", err)
+				}
+				if got.ID != proxyID {
+					t.Errorf("proxy id = %s, want %s", got.ID, proxyID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireProxyAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoProjectAccess) {
+				t.Error("error reveals the project, and so that the proxy exists")
 			}
 		})
 	}

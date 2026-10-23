@@ -278,3 +278,27 @@ func (unimplementedTeamStore) GetWebhookCapture(_ context.Context, _ db.GetWebho
 func (unimplementedTeamStore) DeleteWebhookCaptures(_ context.Context, _ uuid.UUID) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) CreateProxy(_ context.Context, _ db.CreateProxyParams) (db.Proxy, error) {
+	return db.Proxy{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetProxyByID(_ context.Context, _ uuid.UUID) (db.Proxy, error) {
+	return db.Proxy{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListProxiesByProject(_ context.Context, _ uuid.UUID) ([]db.Proxy, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateProxy(_ context.Context, _ db.UpdateProxyParams) (db.Proxy, error) {
+	return db.Proxy{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteProxy(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) ReorderProxies(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}

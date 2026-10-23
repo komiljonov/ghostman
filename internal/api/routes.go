@@ -94,6 +94,14 @@ func (a *api) routes() http.Handler {
 	// member nor any single project on its own.
 	mux.Handle("PUT /api/v1/teams/{team_id}/members/{user_id}/access", a.requireAuth(http.HandlerFunc(a.handleSetMemberAccess)))
 
+	mux.Handle("POST /api/v1/projects/{project_id}/proxies", a.requireAuth(http.HandlerFunc(a.handleCreateProxy)))
+	mux.Handle("GET /api/v1/projects/{project_id}/proxies", a.requireAuth(http.HandlerFunc(a.handleListProxies)))
+	// Body-scoped like the other orders.
+	mux.Handle("PUT /api/v1/proxies/order", a.requireAuth(http.HandlerFunc(a.handleReorderProxies)))
+	mux.Handle("GET /api/v1/proxies/{id}", a.requireAuth(http.HandlerFunc(a.handleGetProxy)))
+	mux.Handle("PATCH /api/v1/proxies/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateProxy)))
+	mux.Handle("DELETE /api/v1/proxies/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteProxy)))
+
 	// Webhook endpoints are managed here; the capturing itself happens only on
 	// the capture hosts (withCapture), never on this router.
 	mux.Handle("POST /api/v1/projects/{project_id}/webhooks", a.requireAuth(http.HandlerFunc(a.handleCreateWebhook)))
