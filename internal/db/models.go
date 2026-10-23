@@ -57,6 +57,9 @@ type Folder struct {
 	PreScript string `json:"pre_script"`
 	// JavaScript run by the client after every send of a request under this folder, outer folders first. Accumulates, does not override. Stored only.
 	PostScript string `json:"post_script"`
+	// inherit = parent chain (end = client global default); global = skip ancestors, use global default; none = direct, stops the chain; proxy = use proxy_id (NULL after the proxy is deleted: resolves as inherit). Resolved by the client.
+	ProxyMode string     `json:"proxy_mode"`
+	ProxyID   *uuid.UUID `json:"proxy_id"`
 }
 
 type Project struct {
@@ -71,6 +74,20 @@ type Project struct {
 type ProjectAccess struct {
 	ProjectID uuid.UUID `json:"project_id"`
 	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Proxy struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	ProxyType string    `json:"proxy_type"`
+	Host      string    `json:"host"`
+	Port      int32     `json:"port"`
+	// Proxy user name. The password is client-local and never stored on the server.
+	Username  string    `json:"username"`
+	Bypass    string    `json:"bypass"`
+	SortOrder int32     `json:"sort_order"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -103,6 +120,9 @@ type Request struct {
 	PreScript string `json:"pre_script"`
 	// JavaScript run by the client after a send. Accumulates: outer folder scripts first, then the request's own (not inherit/override). Stored only, never executed by the server.
 	PostScript string `json:"post_script"`
+	// inherit = parent chain (end = client global default); global = skip ancestors, use global default; none = direct, stops the chain; proxy = use proxy_id (NULL after the proxy is deleted: resolves as inherit). Resolved by the client.
+	ProxyMode string     `json:"proxy_mode"`
+	ProxyID   *uuid.UUID `json:"proxy_id"`
 }
 
 type Session struct {

@@ -23,7 +23,7 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
-- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order, PUT /requests/order (same body-scoped shape), GET /webhooks/{id}/captures/{capture_id} (a capture id only means something within its endpoint)
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order, PUT /requests/order, PUT /proxies/order (same body-scoped shape), GET /webhooks/{id}/captures/{capture_id} (a capture id only means something within its endpoint)
 
 ## Status: server v1 API is COMPLETE (steps 1–7c)
 1. users + sessions (auth)
@@ -80,6 +80,13 @@ follow_redirects is the first; auth, proxy etc. follow the same pattern:
   switching back restores them. Auth types: inherit | none | bearer | basic |
   api_key; 'none' is explicit no-auth and STOPS the chain, while the end of an
   all-inherit chain is also no auth. Validated by parseAuthPatch (node_auth.go).
+- Proxy: one object {mode, proxy_id} over proxy_mode + proxy_id columns.
+  Modes inherit | global | none | proxy; 'none' (direct) STOPS the chain.
+  proxy_id must be a proxy of the node's OWN project (requireProxyInProject;
+  FK race → db.IsProxyGone → same 400) and is forced NULL for other modes.
+  Deleting a proxy SETs proxy_id NULL and leaves proxy_mode 'proxy' — the
+  client resolves that as 'inherit'. Proxy passwords are client-local, never
+  stored (like secret values): there is no column or field for one.
 - NOT this pattern: pre_script / post_script on folders and requests ACCUMULATE
   (outer folder → … → request, all run) instead of inherit/override, so they
   have no 'inherit' value and are plain text (≤ 32768 chars, validateScript).

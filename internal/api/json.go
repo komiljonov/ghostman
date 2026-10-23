@@ -83,8 +83,13 @@ const (
 
 	// messageWebhookNotFound also covers an endpoint in a project the caller
 	// cannot reach.
-	messageWebhookNotFound    = "webhook endpoint not found"
-	messageCaptureNotFound    = "capture not found"
+	messageWebhookNotFound = "webhook endpoint not found"
+	messageCaptureNotFound = "capture not found"
+
+	// messageProxyNotFound also covers a proxy in a project the caller cannot
+	// reach.
+	messageProxyNotFound      = "proxy not found"
+	messageProxyNameTaken     = "a proxy with that name already exists in this project"
 	messageHooksNotConfigured = "webhook capture is not configured on this server (HOOKS_DOMAINS)"
 	messageSecretValue        = "secret values are never stored on the server; keep them in the desktop client"
 

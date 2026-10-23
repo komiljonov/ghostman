@@ -306,6 +306,9 @@ func (a *api) writeAuthzError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.Is(err, authz.ErrNoWebhookAccess):
 		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageWebhookNotFound)
 
+	case errors.Is(err, authz.ErrNoProxyAccess):
+		a.writeError(w, r, http.StatusNotFound, codeNotFound, messageProxyNotFound)
+
 	default:
 		a.serverError(w, r, err)
 	}

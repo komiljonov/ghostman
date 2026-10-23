@@ -47,6 +47,9 @@ var (
 
 	// ErrNoWebhookAccess is the same rule for webhook endpoints.
 	ErrNoWebhookAccess = errors.New("authz: user cannot access the webhook endpoint")
+
+	// ErrNoProxyAccess is the same rule for proxies.
+	ErrNoProxyAccess = errors.New("authz: user cannot access the proxy")
 )
 
 // Store is the query subset these checks need.
@@ -59,6 +62,7 @@ type Store interface {
 	GetVariableByID(ctx context.Context, id uuid.UUID) (db.EnvironmentVariable, error)
 	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
 	GetWebhookEndpointByID(ctx context.Context, id uuid.UUID) (db.WebhookEndpoint, error)
+	GetProxyByID(ctx context.Context, id uuid.UUID) (db.Proxy, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -286,4 +290,29 @@ func (c *Checker) RequireWebhookAccess(ctx context.Context, endpointID, userID u
 	}
 
 	return endpoint, nil
+}
+
+// RequireProxyAccess returns the proxy when the user may reach its project.
+// Like environments, proxies are working material: project access is enough
+// to change them.
+//
+// A missing proxy and one in an unreachable project both come back as
+// ErrNoProxyAccess, so the proxy id is not observable.
+func (c *Checker) RequireProxyAccess(ctx context.Context, proxyID, userID uuid.UUID) (db.Proxy, error) {
+	proxy, err := c.store.GetProxyByID(ctx, proxyID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Proxy{}, ErrNoProxyAccess
+		}
+		return db.Proxy{}, fmt.Errorf("looking up proxy: %w", err)
+	}
+
+	if _, err := c.RequireProjectAccess(ctx, proxy.ProjectID, userID); err != nil {
+		if errors.Is(err, ErrNoProjectAccess) {
+			return db.Proxy{}, ErrNoProxyAccess
+		}
+		return db.Proxy{}, err
+	}
+
+	return proxy, nil
 }

@@ -20,6 +20,7 @@ type Store interface {
 	EnvironmentStore
 	RequestStore
 	WebhookStore
+	ProxyStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -141,6 +142,16 @@ type WebhookStore interface {
 	ListWebhookCapturesAfter(ctx context.Context, arg db.ListWebhookCapturesAfterParams) ([]db.ListWebhookCapturesAfterRow, error)
 	GetWebhookCapture(ctx context.Context, arg db.GetWebhookCaptureParams) (db.WebhookCapture, error)
 	DeleteWebhookCaptures(ctx context.Context, endpointID uuid.UUID) error
+}
+
+// ProxyStore covers a project's proxies. ReorderProxies is transactional.
+type ProxyStore interface {
+	CreateProxy(ctx context.Context, arg db.CreateProxyParams) (db.Proxy, error)
+	GetProxyByID(ctx context.Context, id uuid.UUID) (db.Proxy, error)
+	ListProxiesByProject(ctx context.Context, projectID uuid.UUID) ([]db.Proxy, error)
+	UpdateProxy(ctx context.Context, arg db.UpdateProxyParams) (db.Proxy, error)
+	DeleteProxy(ctx context.Context, id uuid.UUID) error
+	ReorderProxies(ctx context.Context, projectID uuid.UUID, proxyIDs []uuid.UUID, check func([]uuid.UUID) error) error
 }
 
 // The real store must satisfy Store.

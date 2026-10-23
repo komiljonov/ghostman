@@ -49,7 +49,7 @@ VALUES (
           AND siblings.folder_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type CreateRequestParams struct {
@@ -97,6 +97,8 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.ResponseFilter,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -112,7 +114,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id uuid.UUID) error {
 }
 
 const getRequestByID = `-- name: GetRequestByID :one
-SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script
+SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id
 FROM requests
 WHERE id = $1
 `
@@ -144,6 +146,8 @@ func (q *Queries) GetRequestByID(ctx context.Context, id uuid.UUID) (Request, er
 		&i.ResponseFilter,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -152,7 +156,7 @@ const listRequestsByProject = `-- name: ListRequestsByProject :many
 SELECT id, project_id, folder_id, name, method, url, follow_redirects,
        auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
        auth_api_key_name, auth_api_key_value, auth_api_key_in,
-       response_filter,
+       response_filter, proxy_mode, proxy_id,
        sort_order, created_at, updated_at
 FROM requests
 WHERE project_id = $1
@@ -175,6 +179,8 @@ type ListRequestsByProjectRow struct {
 	AuthApiKeyValue   string     `json:"auth_api_key_value"`
 	AuthApiKeyIn      string     `json:"auth_api_key_in"`
 	ResponseFilter    string     `json:"response_filter"`
+	ProxyMode         string     `json:"proxy_mode"`
+	ProxyID           *uuid.UUID `json:"proxy_id"`
 	SortOrder         int32      `json:"sort_order"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -207,6 +213,8 @@ func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID
 			&i.AuthApiKeyValue,
 			&i.AuthApiKeyIn,
 			&i.ResponseFilter,
+			&i.ProxyMode,
+			&i.ProxyID,
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -275,9 +283,11 @@ SET name = COALESCE($1, name),
     response_filter = COALESCE($15, response_filter),
     pre_script = COALESCE($16, pre_script),
     post_script = COALESCE($17, post_script),
+    proxy_mode = COALESCE($18, proxy_mode),
+    proxy_id = CASE WHEN $19::boolean THEN $20::uuid ELSE proxy_id END,
     updated_at = now()
-WHERE id = $18
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script
+WHERE id = $21
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type UpdateRequestParams struct {
@@ -298,6 +308,9 @@ type UpdateRequestParams struct {
 	ResponseFilter    *string         `json:"response_filter"`
 	PreScript         *string         `json:"pre_script"`
 	PostScript        *string         `json:"post_script"`
+	ProxyMode         *string         `json:"proxy_mode"`
+	SetProxy          bool            `json:"set_proxy"`
+	ProxyID           *uuid.UUID      `json:"proxy_id"`
 	ID                uuid.UUID       `json:"id"`
 }
 
@@ -324,6 +337,9 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.ResponseFilter,
 		arg.PreScript,
 		arg.PostScript,
+		arg.ProxyMode,
+		arg.SetProxy,
+		arg.ProxyID,
 		arg.ID,
 	)
 	var i Request
@@ -351,6 +367,8 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.ResponseFilter,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -370,7 +388,7 @@ SET folder_id = $1,
     ),
     updated_at = now()
 WHERE requests.id = $3
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type UpdateRequestFolderParams struct {
@@ -409,6 +427,8 @@ func (q *Queries) UpdateRequestFolder(ctx context.Context, arg UpdateRequestFold
 		&i.ResponseFilter,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }

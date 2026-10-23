@@ -45,7 +45,7 @@ VALUES (
           AND siblings.parent_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type CreateFolderParams struct {
@@ -78,6 +78,8 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (Fol
 		&i.AuthApiKeyIn,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -94,7 +96,7 @@ func (q *Queries) DeleteFolder(ctx context.Context, id uuid.UUID) error {
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
 FROM folders
 WHERE id = $1
 `
@@ -119,6 +121,8 @@ func (q *Queries) GetFolderByID(ctx context.Context, id uuid.UUID) (Folder, erro
 		&i.AuthApiKeyIn,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -157,7 +161,7 @@ func (q *Queries) IsDescendant(ctx context.Context, arg IsDescendantParams) (boo
 }
 
 const listFoldersByProject = `-- name: ListFoldersByProject :many
-SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
 FROM folders
 WHERE project_id = $1
 ORDER BY parent_id NULLS FIRST, sort_order, created_at
@@ -190,6 +194,8 @@ func (q *Queries) ListFoldersByProject(ctx context.Context, projectID uuid.UUID)
 			&i.AuthApiKeyIn,
 			&i.PreScript,
 			&i.PostScript,
+			&i.ProxyMode,
+			&i.ProxyID,
 		); err != nil {
 			return nil, err
 		}
@@ -248,24 +254,29 @@ SET name = COALESCE($1, name),
     auth_api_key_value = COALESCE($8, auth_api_key_value),
     auth_api_key_in = COALESCE($9, auth_api_key_in),
     pre_script = COALESCE($10, pre_script),
-    post_script = COALESCE($11, post_script)
-WHERE id = $12
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script
+    post_script = COALESCE($11, post_script),
+    proxy_mode = COALESCE($12, proxy_mode),
+    proxy_id = CASE WHEN $13::boolean THEN $14::uuid ELSE proxy_id END
+WHERE id = $15
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type UpdateFolderParams struct {
-	Name              *string   `json:"name"`
-	FollowRedirects   *string   `json:"follow_redirects"`
-	AuthType          *string   `json:"auth_type"`
-	AuthBearerToken   *string   `json:"auth_bearer_token"`
-	AuthBasicUsername *string   `json:"auth_basic_username"`
-	AuthBasicPassword *string   `json:"auth_basic_password"`
-	AuthApiKeyName    *string   `json:"auth_api_key_name"`
-	AuthApiKeyValue   *string   `json:"auth_api_key_value"`
-	AuthApiKeyIn      *string   `json:"auth_api_key_in"`
-	PreScript         *string   `json:"pre_script"`
-	PostScript        *string   `json:"post_script"`
-	ID                uuid.UUID `json:"id"`
+	Name              *string    `json:"name"`
+	FollowRedirects   *string    `json:"follow_redirects"`
+	AuthType          *string    `json:"auth_type"`
+	AuthBearerToken   *string    `json:"auth_bearer_token"`
+	AuthBasicUsername *string    `json:"auth_basic_username"`
+	AuthBasicPassword *string    `json:"auth_basic_password"`
+	AuthApiKeyName    *string    `json:"auth_api_key_name"`
+	AuthApiKeyValue   *string    `json:"auth_api_key_value"`
+	AuthApiKeyIn      *string    `json:"auth_api_key_in"`
+	PreScript         *string    `json:"pre_script"`
+	PostScript        *string    `json:"post_script"`
+	ProxyMode         *string    `json:"proxy_mode"`
+	SetProxy          bool       `json:"set_proxy"`
+	ProxyID           *uuid.UUID `json:"proxy_id"`
+	ID                uuid.UUID  `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
@@ -283,6 +294,9 @@ func (q *Queries) UpdateFolder(ctx context.Context, arg UpdateFolderParams) (Fol
 		arg.AuthApiKeyIn,
 		arg.PreScript,
 		arg.PostScript,
+		arg.ProxyMode,
+		arg.SetProxy,
+		arg.ProxyID,
 		arg.ID,
 	)
 	var i Folder
@@ -303,6 +317,8 @@ func (q *Queries) UpdateFolder(ctx context.Context, arg UpdateFolderParams) (Fol
 		&i.AuthApiKeyIn,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
@@ -321,7 +337,7 @@ SET parent_id = $1,
         )
     )
 WHERE folders.id = $3
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
 `
 
 type UpdateFolderParentParams struct {
@@ -353,6 +369,8 @@ func (q *Queries) UpdateFolderParent(ctx context.Context, arg UpdateFolderParent
 		&i.AuthApiKeyIn,
 		&i.PreScript,
 		&i.PostScript,
+		&i.ProxyMode,
+		&i.ProxyID,
 	)
 	return i, err
 }
