@@ -31,6 +31,7 @@ const (
 	AuthBearer  = "bearer"
 	AuthBasic   = "basic"
 	AuthAPIKey  = "api_key"
+	AuthJWT     = "jwt"
 
 	APIKeyInHeader = "header"
 	APIKeyInQuery  = "query"
@@ -39,6 +40,13 @@ const (
 // AuthTypes and APIKeyPlacements list every value, in the order error
 // messages name them.
 var (
-	AuthTypes        = []string{AuthInherit, AuthNone, AuthBearer, AuthBasic, AuthAPIKey}
+	AuthTypes        = []string{AuthInherit, AuthNone, AuthBearer, AuthBasic, AuthAPIKey, AuthJWT}
 	APIKeyPlacements = []string{APIKeyInHeader, APIKeyInQuery}
+)
+
+// JWT signing algorithms and token placements. They mirror the
+// <table>_auth_jwt_algorithm and <table>_auth_jwt_add_to CHECK constraints.
+var (
+	JWTAlgorithms = []string{"HS256", "HS384", "HS512"}
+	JWTPlacements = []string{"header", "query"}
 )

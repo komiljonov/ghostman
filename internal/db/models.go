@@ -58,8 +58,17 @@ type Folder struct {
 	// JavaScript run by the client after every send of a request under this folder, outer folders first. Accumulates, does not override. Stored only.
 	PostScript string `json:"post_script"`
 	// inherit = parent chain (end = client global default); global = skip ancestors, use global default; none = direct, stops the chain; proxy = use proxy_id (NULL after the proxy is deleted: resolves as inherit). Resolved by the client.
-	ProxyMode string     `json:"proxy_mode"`
-	ProxyID   *uuid.UUID `json:"proxy_id"`
+	ProxyMode        string     `json:"proxy_mode"`
+	ProxyID          *uuid.UUID `json:"proxy_id"`
+	AuthJwtAlgorithm string     `json:"auth_jwt_algorithm"`
+	// JWT signing secret as authored; may contain {{vars}} - use a {{secret_var}} reference: synced in plaintext. The client signs at send time; the server never does.
+	AuthJwtSecret       string `json:"auth_jwt_secret"`
+	AuthJwtSecretBase64 bool   `json:"auth_jwt_secret_base64"`
+	// JWT claims as authored (JSON text with {{vars}} and {{$now+N}}); opaque to the server, max 8192.
+	AuthJwtPayload string `json:"auth_jwt_payload"`
+	AuthJwtAddTo   string `json:"auth_jwt_add_to"`
+	AuthJwtName    string `json:"auth_jwt_name"`
+	AuthJwtPrefix  string `json:"auth_jwt_prefix"`
 }
 
 type Project struct {
@@ -121,8 +130,17 @@ type Request struct {
 	// JavaScript run by the client after a send. Accumulates: outer folder scripts first, then the request's own (not inherit/override). Stored only, never executed by the server.
 	PostScript string `json:"post_script"`
 	// inherit = parent chain (end = client global default); global = skip ancestors, use global default; none = direct, stops the chain; proxy = use proxy_id (NULL after the proxy is deleted: resolves as inherit). Resolved by the client.
-	ProxyMode string     `json:"proxy_mode"`
-	ProxyID   *uuid.UUID `json:"proxy_id"`
+	ProxyMode        string     `json:"proxy_mode"`
+	ProxyID          *uuid.UUID `json:"proxy_id"`
+	AuthJwtAlgorithm string     `json:"auth_jwt_algorithm"`
+	// JWT signing secret as authored; may contain {{vars}} - use a {{secret_var}} reference: synced in plaintext. The client signs at send time; the server never does.
+	AuthJwtSecret       string `json:"auth_jwt_secret"`
+	AuthJwtSecretBase64 bool   `json:"auth_jwt_secret_base64"`
+	// JWT claims as authored (JSON text with {{vars}} and {{$now+N}}); opaque to the server, max 8192.
+	AuthJwtPayload string `json:"auth_jwt_payload"`
+	AuthJwtAddTo   string `json:"auth_jwt_add_to"`
+	AuthJwtName    string `json:"auth_jwt_name"`
+	AuthJwtPrefix  string `json:"auth_jwt_prefix"`
 }
 
 type Session struct {

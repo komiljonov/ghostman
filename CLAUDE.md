@@ -78,7 +78,10 @@ follow_redirects is the first; auth, proxy etc. follow the same pattern:
   over flat auth_* columns: the object's `type` is required whenever it is sent,
   other fields merge, and fields not matching the type are preserved so
   switching back restores them. Auth types: inherit | none | bearer | basic |
-  api_key; 'none' is explicit no-auth and STOPS the chain, while the end of an
+  api_key | jwt (jwt = a template the CLIENT signs at send time: algorithm
+  HS256|HS384|HS512, secret ({{secret_var}}), payload text with {{vars}} and
+  {{$now±N}}, placement; the server never signs or parses it).
+  'none' is explicit no-auth and STOPS the chain, while the end of an
   all-inherit chain is also no auth. Validated by parseAuthPatch (node_auth.go).
 - Proxy: one object {mode, proxy_id} over proxy_mode + proxy_id columns.
   Modes inherit | global | none | proxy; 'none' (direct) STOPS the chain.

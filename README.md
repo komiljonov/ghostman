@@ -326,7 +326,14 @@ The second cascading setting is `auth`, one object per folder and request:
   "basic_password": "",
   "api_key_name": "",
   "api_key_value": "",
-  "api_key_in": "header"
+  "api_key_in": "header",
+  "jwt_algorithm": "HS256",
+  "jwt_secret": "",
+  "jwt_secret_base64": false,
+  "jwt_payload": "",
+  "jwt_add_to": "header",
+  "jwt_name": "",
+  "jwt_prefix": ""
 }
 ```
 
@@ -337,6 +344,7 @@ The second cascading setting is `auth`, one object per folder and request:
 | `bearer`  | `Authorization: Bearer <bearer_token>`.                                 |
 | `basic`   | HTTP basic auth with `basic_username` / `basic_password`.               |
 | `api_key` | `api_key_name` = `api_key_value`, sent as a header or a query parameter (`api_key_in`: `header` or `query`). |
+| `jwt`     | A JSON Web Token the **client** builds and signs at send time (see below). |
 
 So `none` and `inherit` look the same at the top of the tree but differ below
 it: `inherit` says "whatever my folder does", `none` says "nothing, whatever my
@@ -353,9 +361,28 @@ Set it with `PATCH /folders/{id}` or `PATCH /requests/{id}`, e.g.
 - Fields that do not match the current type are **kept**, not cleared:
   switching from `bearer` to `basic` and back restores the old bearer token.
   Send an empty string to clear a field.
-- Every value is an opaque string of at most 8192 characters. Unknown fields,
-  an unknown `type` or `api_key_in`, and non-string values are `400`, with a
-  message naming the field (`auth.type is required`).
+- Every value is an opaque string of at most 8192 characters (except
+  `jwt_secret_base64`, a boolean). Unknown fields, an unknown `type`,
+  `api_key_in`, `jwt_algorithm` or `jwt_add_to`, and values of the wrong type
+  are `400`, with a message naming the field (`auth.type is required`).
+
+**JWT.** With `type: "jwt"` the node stores a token *template*; the desktop
+client fills it in and signs it each time it sends the request. The server
+never signs anything and never sees a resolved secret or payload.
+
+- `jwt_algorithm`: `HS256` (default), `HS384` or `HS512`.
+- `jwt_secret`: the HMAC signing key. Like every auth field it is synced in
+  plaintext, so make it a reference to a secret variable —
+  `"{{jwt_secret}}"` — rather than the key itself. `jwt_secret_base64: true`
+  means the resolved key is base64 and should be decoded before signing.
+- `jwt_payload`: the claims as authored, e.g.
+  `{"sub":"{{user_id}}","exp":{{$now+3600}}}`. `{{variables}}` and the
+  `{{$now}}` / `{{$now+N}}` / `{{$now-N}}` timestamps are resolved by the
+  client; the server stores the text as-is and does not parse it, so it need
+  not be valid JSON until then.
+- `jwt_add_to`: `header` (default) or `query`. `jwt_name` is the header or
+  parameter name (empty = `Authorization` / `token`); `jwt_prefix` is the
+  header value's prefix (empty = `Bearer `).
 
 **Keep real credentials out of these fields.** Unlike a secret variable's
 value, whatever is stored here is synced in plaintext to every team member who

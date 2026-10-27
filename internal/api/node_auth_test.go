@@ -95,7 +95,7 @@ func checkAuthEverywhere(t *testing.T, target authTarget, want nodeAuthResponse)
 	}
 }
 
-var defaultAuth = nodeAuthResponse{Type: "inherit", APIKeyIn: "header"}
+var defaultAuth = nodeAuthResponse{Type: "inherit", APIKeyIn: "header", JWTAlgorithm: "HS256", JWTAddTo: "header"}
 
 func TestAuthDefaults(t *testing.T) {
 	f, owner, _, project := newFolderProject(t, "auth-defaults")
