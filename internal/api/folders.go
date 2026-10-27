@@ -99,13 +99,12 @@ func newFolderResponse(folder db.Folder) folderResponse {
 		ParentID:        optionalUUIDString(folder.ParentID),
 		Name:            folder.Name,
 		FollowRedirects: folder.FollowRedirects,
-		Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
-			folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
-		PreScript:  folder.PreScript,
-		PostScript: folder.PostScript,
-		Proxy:      newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
-		SortOrder:  folder.SortOrder,
-		CreatedAt:  folder.CreatedAt,
+		Auth:            authFromFolder(folder),
+		PreScript:       folder.PreScript,
+		PostScript:      folder.PostScript,
+		Proxy:           newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
+		SortOrder:       folder.SortOrder,
+		CreatedAt:       folder.CreatedAt,
 	}
 }
 
@@ -189,13 +188,12 @@ func (a *api) handleListFolders(w http.ResponseWriter, r *http.Request) {
 			ParentID:        optionalUUIDString(folder.ParentID),
 			Name:            folder.Name,
 			FollowRedirects: folder.FollowRedirects,
-			Auth: newNodeAuthResponse(folder.AuthType, folder.AuthBearerToken, folder.AuthBasicUsername, folder.AuthBasicPassword,
-				folder.AuthApiKeyName, folder.AuthApiKeyValue, folder.AuthApiKeyIn),
-			PreScript:  folder.PreScript,
-			PostScript: folder.PostScript,
-			Proxy:      newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
-			SortOrder:  folder.SortOrder,
-			CreatedAt:  folder.CreatedAt,
+			Auth:            authFromFolder(folder),
+			PreScript:       folder.PreScript,
+			PostScript:      folder.PostScript,
+			Proxy:           newNodeProxyResponse(folder.ProxyMode, folder.ProxyID),
+			SortOrder:       folder.SortOrder,
+			CreatedAt:       folder.CreatedAt,
 		})
 	}
 
@@ -265,8 +263,7 @@ func (a *api) handleUpdateFolder(w http.ResponseWriter, r *http.Request) {
 		PreScript:       req.PreScript,
 		PostScript:      req.PostScript,
 	}
-	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
-		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
+	auth.applyToFolder(&params)
 	params.ProxyMode, params.SetProxy, params.ProxyID = proxy.values()
 
 	if req.Name != nil {

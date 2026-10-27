@@ -131,13 +131,12 @@ func newRequestResponse(request db.Request) requestResponse {
 		Method:          request.Method,
 		URL:             request.Url,
 		FollowRedirects: request.FollowRedirects,
-		Auth: newNodeAuthResponse(request.AuthType, request.AuthBearerToken, request.AuthBasicUsername, request.AuthBasicPassword,
-			request.AuthApiKeyName, request.AuthApiKeyValue, request.AuthApiKeyIn),
-		ResponseFilter: request.ResponseFilter,
-		Proxy:          newNodeProxyResponse(request.ProxyMode, request.ProxyID),
-		SortOrder:      request.SortOrder,
-		CreatedAt:      request.CreatedAt,
-		UpdatedAt:      request.UpdatedAt,
+		Auth:            authFromRequest(request),
+		ResponseFilter:  request.ResponseFilter,
+		Proxy:           newNodeProxyResponse(request.ProxyMode, request.ProxyID),
+		SortOrder:       request.SortOrder,
+		CreatedAt:       request.CreatedAt,
+		UpdatedAt:       request.UpdatedAt,
 	}
 }
 
@@ -239,13 +238,12 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 			Method:          row.Method,
 			URL:             row.Url,
 			FollowRedirects: row.FollowRedirects,
-			Auth: newNodeAuthResponse(row.AuthType, row.AuthBearerToken, row.AuthBasicUsername, row.AuthBasicPassword,
-				row.AuthApiKeyName, row.AuthApiKeyValue, row.AuthApiKeyIn),
-			ResponseFilter: row.ResponseFilter,
-			Proxy:          newNodeProxyResponse(row.ProxyMode, row.ProxyID),
-			SortOrder:      row.SortOrder,
-			CreatedAt:      row.CreatedAt,
-			UpdatedAt:      row.UpdatedAt,
+			Auth:            authFromRequestRow(row),
+			ResponseFilter:  row.ResponseFilter,
+			Proxy:           newNodeProxyResponse(row.ProxyMode, row.ProxyID),
+			SortOrder:       row.SortOrder,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
 		})
 	}
 
@@ -327,8 +325,7 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}
-	params.AuthType, params.AuthBearerToken, params.AuthBasicUsername, params.AuthBasicPassword,
-		params.AuthApiKeyName, params.AuthApiKeyValue, params.AuthApiKeyIn = auth.values()
+	auth.applyToRequest(&params)
 
 	// Opaque jq query: only its length is checked; "" clears the filter.
 	if req.ResponseFilter != nil && utf8.RuneCountInString(*req.ResponseFilter) > maxResponseFilterLength {

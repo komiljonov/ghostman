@@ -45,7 +45,7 @@ VALUES (
           AND siblings.parent_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type CreateFolderParams struct {
@@ -80,6 +80,13 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (Fol
 		&i.PostScript,
 		&i.ProxyMode,
 		&i.ProxyID,
+		&i.AuthJwtAlgorithm,
+		&i.AuthJwtSecret,
+		&i.AuthJwtSecretBase64,
+		&i.AuthJwtPayload,
+		&i.AuthJwtAddTo,
+		&i.AuthJwtName,
+		&i.AuthJwtPrefix,
 	)
 	return i, err
 }
@@ -96,7 +103,7 @@ func (q *Queries) DeleteFolder(ctx context.Context, id uuid.UUID) error {
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 FROM folders
 WHERE id = $1
 `
@@ -123,6 +130,13 @@ func (q *Queries) GetFolderByID(ctx context.Context, id uuid.UUID) (Folder, erro
 		&i.PostScript,
 		&i.ProxyMode,
 		&i.ProxyID,
+		&i.AuthJwtAlgorithm,
+		&i.AuthJwtSecret,
+		&i.AuthJwtSecretBase64,
+		&i.AuthJwtPayload,
+		&i.AuthJwtAddTo,
+		&i.AuthJwtName,
+		&i.AuthJwtPrefix,
 	)
 	return i, err
 }
@@ -161,7 +175,7 @@ func (q *Queries) IsDescendant(ctx context.Context, arg IsDescendantParams) (boo
 }
 
 const listFoldersByProject = `-- name: ListFoldersByProject :many
-SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
+SELECT id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 FROM folders
 WHERE project_id = $1
 ORDER BY parent_id NULLS FIRST, sort_order, created_at
@@ -196,6 +210,13 @@ func (q *Queries) ListFoldersByProject(ctx context.Context, projectID uuid.UUID)
 			&i.PostScript,
 			&i.ProxyMode,
 			&i.ProxyID,
+			&i.AuthJwtAlgorithm,
+			&i.AuthJwtSecret,
+			&i.AuthJwtSecretBase64,
+			&i.AuthJwtPayload,
+			&i.AuthJwtAddTo,
+			&i.AuthJwtName,
+			&i.AuthJwtPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -253,30 +274,44 @@ SET name = COALESCE($1, name),
     auth_api_key_name = COALESCE($7, auth_api_key_name),
     auth_api_key_value = COALESCE($8, auth_api_key_value),
     auth_api_key_in = COALESCE($9, auth_api_key_in),
-    pre_script = COALESCE($10, pre_script),
-    post_script = COALESCE($11, post_script),
-    proxy_mode = COALESCE($12, proxy_mode),
-    proxy_id = CASE WHEN $13::boolean THEN $14::uuid ELSE proxy_id END
-WHERE id = $15
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
+    auth_jwt_algorithm = COALESCE($10, auth_jwt_algorithm),
+    auth_jwt_secret = COALESCE($11, auth_jwt_secret),
+    auth_jwt_secret_base64 = COALESCE($12::boolean, auth_jwt_secret_base64),
+    auth_jwt_payload = COALESCE($13, auth_jwt_payload),
+    auth_jwt_add_to = COALESCE($14, auth_jwt_add_to),
+    auth_jwt_name = COALESCE($15, auth_jwt_name),
+    auth_jwt_prefix = COALESCE($16, auth_jwt_prefix),
+    pre_script = COALESCE($17, pre_script),
+    post_script = COALESCE($18, post_script),
+    proxy_mode = COALESCE($19, proxy_mode),
+    proxy_id = CASE WHEN $20::boolean THEN $21::uuid ELSE proxy_id END
+WHERE id = $22
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type UpdateFolderParams struct {
-	Name              *string    `json:"name"`
-	FollowRedirects   *string    `json:"follow_redirects"`
-	AuthType          *string    `json:"auth_type"`
-	AuthBearerToken   *string    `json:"auth_bearer_token"`
-	AuthBasicUsername *string    `json:"auth_basic_username"`
-	AuthBasicPassword *string    `json:"auth_basic_password"`
-	AuthApiKeyName    *string    `json:"auth_api_key_name"`
-	AuthApiKeyValue   *string    `json:"auth_api_key_value"`
-	AuthApiKeyIn      *string    `json:"auth_api_key_in"`
-	PreScript         *string    `json:"pre_script"`
-	PostScript        *string    `json:"post_script"`
-	ProxyMode         *string    `json:"proxy_mode"`
-	SetProxy          bool       `json:"set_proxy"`
-	ProxyID           *uuid.UUID `json:"proxy_id"`
-	ID                uuid.UUID  `json:"id"`
+	Name                *string    `json:"name"`
+	FollowRedirects     *string    `json:"follow_redirects"`
+	AuthType            *string    `json:"auth_type"`
+	AuthBearerToken     *string    `json:"auth_bearer_token"`
+	AuthBasicUsername   *string    `json:"auth_basic_username"`
+	AuthBasicPassword   *string    `json:"auth_basic_password"`
+	AuthApiKeyName      *string    `json:"auth_api_key_name"`
+	AuthApiKeyValue     *string    `json:"auth_api_key_value"`
+	AuthApiKeyIn        *string    `json:"auth_api_key_in"`
+	AuthJwtAlgorithm    *string    `json:"auth_jwt_algorithm"`
+	AuthJwtSecret       *string    `json:"auth_jwt_secret"`
+	AuthJwtSecretBase64 *bool      `json:"auth_jwt_secret_base64"`
+	AuthJwtPayload      *string    `json:"auth_jwt_payload"`
+	AuthJwtAddTo        *string    `json:"auth_jwt_add_to"`
+	AuthJwtName         *string    `json:"auth_jwt_name"`
+	AuthJwtPrefix       *string    `json:"auth_jwt_prefix"`
+	PreScript           *string    `json:"pre_script"`
+	PostScript          *string    `json:"post_script"`
+	ProxyMode           *string    `json:"proxy_mode"`
+	SetProxy            bool       `json:"set_proxy"`
+	ProxyID             *uuid.UUID `json:"proxy_id"`
+	ID                  uuid.UUID  `json:"id"`
 }
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
@@ -292,6 +327,13 @@ func (q *Queries) UpdateFolder(ctx context.Context, arg UpdateFolderParams) (Fol
 		arg.AuthApiKeyName,
 		arg.AuthApiKeyValue,
 		arg.AuthApiKeyIn,
+		arg.AuthJwtAlgorithm,
+		arg.AuthJwtSecret,
+		arg.AuthJwtSecretBase64,
+		arg.AuthJwtPayload,
+		arg.AuthJwtAddTo,
+		arg.AuthJwtName,
+		arg.AuthJwtPrefix,
 		arg.PreScript,
 		arg.PostScript,
 		arg.ProxyMode,
@@ -319,6 +361,13 @@ func (q *Queries) UpdateFolder(ctx context.Context, arg UpdateFolderParams) (Fol
 		&i.PostScript,
 		&i.ProxyMode,
 		&i.ProxyID,
+		&i.AuthJwtAlgorithm,
+		&i.AuthJwtSecret,
+		&i.AuthJwtSecretBase64,
+		&i.AuthJwtPayload,
+		&i.AuthJwtAddTo,
+		&i.AuthJwtName,
+		&i.AuthJwtPrefix,
 	)
 	return i, err
 }
@@ -337,7 +386,7 @@ SET parent_id = $1,
         )
     )
 WHERE folders.id = $3
-RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id
+RETURNING id, project_id, parent_id, name, sort_order, created_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type UpdateFolderParentParams struct {
@@ -371,6 +420,13 @@ func (q *Queries) UpdateFolderParent(ctx context.Context, arg UpdateFolderParent
 		&i.PostScript,
 		&i.ProxyMode,
 		&i.ProxyID,
+		&i.AuthJwtAlgorithm,
+		&i.AuthJwtSecret,
+		&i.AuthJwtSecretBase64,
+		&i.AuthJwtPayload,
+		&i.AuthJwtAddTo,
+		&i.AuthJwtName,
+		&i.AuthJwtPrefix,
 	)
 	return i, err
 }
