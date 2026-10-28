@@ -50,6 +50,10 @@ var (
 
 	// ErrNoProxyAccess is the same rule for proxies.
 	ErrNoProxyAccess = errors.New("authz: user cannot access the proxy")
+
+	// ErrNoExampleAccess is the same rule for saved response examples, through
+	// the request they belong to.
+	ErrNoExampleAccess = errors.New("authz: user cannot access the example")
 )
 
 // Store is the query subset these checks need.
@@ -63,6 +67,7 @@ type Store interface {
 	GetRequestByID(ctx context.Context, id uuid.UUID) (db.Request, error)
 	GetWebhookEndpointByID(ctx context.Context, id uuid.UUID) (db.WebhookEndpoint, error)
 	GetProxyByID(ctx context.Context, id uuid.UUID) (db.Proxy, error)
+	GetRequestExampleByID(ctx context.Context, id uuid.UUID) (db.RequestExample, error)
 }
 
 // Checker performs permission checks against a Store.
@@ -315,4 +320,28 @@ func (c *Checker) RequireProxyAccess(ctx context.Context, proxyID, userID uuid.U
 	}
 
 	return proxy, nil
+}
+
+// RequireExampleAccess returns the saved response example when the user may
+// reach its request, and so the request's project.
+//
+// A missing example and one under an unreachable request both come back as
+// ErrNoExampleAccess, so the example id is not observable.
+func (c *Checker) RequireExampleAccess(ctx context.Context, exampleID, userID uuid.UUID) (db.RequestExample, error) {
+	example, err := c.store.GetRequestExampleByID(ctx, exampleID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.RequestExample{}, ErrNoExampleAccess
+		}
+		return db.RequestExample{}, fmt.Errorf("looking up example: %w", err)
+	}
+
+	if _, err := c.RequireRequestAccess(ctx, example.RequestID, userID); err != nil {
+		if errors.Is(err, ErrNoRequestAccess) {
+			return db.RequestExample{}, ErrNoExampleAccess
+		}
+		return db.RequestExample{}, err
+	}
+
+	return example, nil
 }

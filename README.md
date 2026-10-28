@@ -126,11 +126,17 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | PUT    | `/api/v1/proxies/order`   | bearer | Project access. `{project_id, proxy_ids}` must list every proxy of the project. `204`. |
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
 | GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body. |
-| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`. |
+| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`, plus `example_count`. |
 | PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?, proxy?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
-| DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`. |
+| DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`; its saved examples go with it. |
+| POST   | `/api/v1/requests/{request_id}/examples` | bearer | Project access. `{name, status?, headers?, content_type?, body?}` → `201`; `body` is base64, at most 1MB decoded. |
+| GET    | `/api/v1/requests/{request_id}/examples` | bearer | Project access. Summaries in order: `[{id, name, status, content_type, body_size, sort_order, updated_at}]`, no headers or body. |
+| GET    | `/api/v1/examples/{id}`   | bearer | Project access. The whole example, `body` base64 (or `null`). |
+| PATCH  | `/api/v1/examples/{id}`   | bearer | Project access. Partial update of `name`, `status`, `headers`, `content_type`, `body`. |
+| DELETE | `/api/v1/examples/{id}`   | bearer | Project access. `204`. |
+| PUT    | `/api/v1/examples/order`  | bearer | Project access. `{request_id, example_ids}` must list every example of the request. `204`. |
 
 Errors always use a single envelope:
 
@@ -159,8 +165,8 @@ Deliberate exceptions: `DELETE /teams/{team_id}/members/{user_id}`,
 `PUT /teams/{team_id}/members/{user_id}/access`,
 `PUT /teams/{team_id}/projects/order`, and `PUT /folders/order`, which takes its
 scope in the body because the parent being reordered may be the project root.
-`PUT /environments/order`, `PUT /variables/order`, `PUT /requests/order` and `PUT /proxies/order`
-follow the same body-scoped shape.
+`PUT /environments/order`, `PUT /variables/order`, `PUT /requests/order`, `PUT /proxies/order`
+and `PUT /examples/order` follow the same body-scoped shape.
 
 ## Authentication
 
@@ -626,6 +632,27 @@ exactly like a missing id.
 - **File bytes and paths never reach the server.** They stay in the desktop
   client, like secret variable values; the server syncs only which fields a
   multipart body has and the names to show for them.
+
+## Saved response examples
+
+An example is a named, saved response attached to a request: `status`
+(100–599, default 200), `headers` (the same `{key, value, enabled}` rows as
+request headers), `content_type` (up to 200 characters, may be empty) and a
+body. Anyone who can reach the request's project can manage them, and they
+sync like the rest of the project.
+
+- The body is raw bytes, sent and returned as **base64** (standard alphabet,
+  padded), so binary responses round-trip byte for byte. Because examples sync
+  to every member, it is capped at **1MB** (1,048,576 bytes decoded); more is
+  `400 example body must be at most 1MB`. No body is `null`.
+- `GET /requests/{request_id}/examples` returns summaries only (with
+  `body_size`), so listing stays cheap; `GET /examples/{id}` has the headers
+  and body. `GET` and `PATCH /requests/{id}` carry `example_count`, so the
+  client can show a badge without listing.
+- `PATCH` is partial: an absent or `null` field is left alone, a `body` of
+  `""` clears it, and `updated_at` moves on every update.
+- New examples go last; `PUT /examples/order` writes 0-based positions.
+  Deleting a request deletes its examples.
 
 ## Testing
 

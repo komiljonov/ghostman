@@ -23,7 +23,7 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 - State-changing actions are verb sub-paths on the flat resource: POST /invitations/{id}/accept
 - /me/... is for collections addressed to the current user: GET /me/invitations
 - Never nest deeper than one level
-- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order, PUT /requests/order, PUT /proxies/order (same body-scoped shape), GET /webhooks/{id}/captures/{capture_id} (a capture id only means something within its endpoint)
+- Accepted exceptions, deliberate — do not "fix": DELETE /teams/{team_id}/members/{user_id}, PUT /teams/{team_id}/members/{user_id}/access, PUT /teams/{team_id}/projects/order, PUT /folders/order (scope in the body: the parent may be null), PUT /environments/order, PUT /variables/order, PUT /requests/order, PUT /proxies/order, PUT /examples/order (same body-scoped shape), GET /webhooks/{id}/captures/{capture_id} (a capture id only means something within its endpoint)
 
 ## Status: server v1 API is COMPLETE (steps 1–7c)
 1. users + sessions (auth)
@@ -48,6 +48,12 @@ endpoints without discussion. Start from the backlog below.
 - sort_order is 0-based for new code (environments, variables, requests). Older
   reorder endpoints (projects, folders) still write 1-based positions.
 - Tree writes (folder/request moves and reorders) run under db LockProject.
+- Saved response examples (request_examples) hang off a request, ON DELETE
+  CASCADE; access is the request's (authz.RequireExampleAccess → 404). The body
+  is bytea, base64 in JSON, hard-capped at 1 MiB (db.MaxExampleBodySize; CHECK
+  request_examples_body_size backstops it and keeps body_size consistent)
+  because examples SYNC. The list is summaries only; GET/PATCH /requests/{id}
+  carry example_count.
 
 ## Backlog (deferred, not designed)
 - Sync protocol between desktop client and server — the next big design item

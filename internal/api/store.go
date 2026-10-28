@@ -21,6 +21,7 @@ type Store interface {
 	RequestStore
 	WebhookStore
 	ProxyStore
+	ExampleStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -152,6 +153,18 @@ type ProxyStore interface {
 	UpdateProxy(ctx context.Context, arg db.UpdateProxyParams) (db.Proxy, error)
 	DeleteProxy(ctx context.Context, id uuid.UUID) error
 	ReorderProxies(ctx context.Context, projectID uuid.UUID, proxyIDs []uuid.UUID, check func([]uuid.UUID) error) error
+}
+
+// ExampleStore covers saved response examples. ReorderRequestExamples is
+// transactional.
+type ExampleStore interface {
+	CreateRequestExample(ctx context.Context, arg db.CreateRequestExampleParams) (db.RequestExample, error)
+	GetRequestExampleByID(ctx context.Context, id uuid.UUID) (db.RequestExample, error)
+	ListRequestExampleSummaries(ctx context.Context, requestID uuid.UUID) ([]db.ListRequestExampleSummariesRow, error)
+	CountRequestExamples(ctx context.Context, requestID uuid.UUID) (int64, error)
+	UpdateRequestExample(ctx context.Context, arg db.UpdateRequestExampleParams) (db.RequestExample, error)
+	DeleteRequestExample(ctx context.Context, id uuid.UUID) error
+	ReorderRequestExamples(ctx context.Context, requestID uuid.UUID, exampleIDs []uuid.UUID, check func([]uuid.UUID) error) error
 }
 
 // The real store must satisfy Store.

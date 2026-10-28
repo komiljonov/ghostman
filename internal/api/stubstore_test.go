@@ -302,3 +302,31 @@ func (unimplementedTeamStore) DeleteProxy(_ context.Context, _ uuid.UUID) error 
 func (unimplementedTeamStore) ReorderProxies(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) CreateRequestExample(_ context.Context, _ db.CreateRequestExampleParams) (db.RequestExample, error) {
+	return db.RequestExample{}, errStubbed
+}
+
+func (unimplementedTeamStore) GetRequestExampleByID(_ context.Context, _ uuid.UUID) (db.RequestExample, error) {
+	return db.RequestExample{}, errStubbed
+}
+
+func (unimplementedTeamStore) ListRequestExampleSummaries(_ context.Context, _ uuid.UUID) ([]db.ListRequestExampleSummariesRow, error) {
+	return nil, errStubbed
+}
+
+func (unimplementedTeamStore) CountRequestExamples(_ context.Context, _ uuid.UUID) (int64, error) {
+	return 0, errStubbed
+}
+
+func (unimplementedTeamStore) UpdateRequestExample(_ context.Context, _ db.UpdateRequestExampleParams) (db.RequestExample, error) {
+	return db.RequestExample{}, errStubbed
+}
+
+func (unimplementedTeamStore) DeleteRequestExample(_ context.Context, _ uuid.UUID) error {
+	return errStubbed
+}
+
+func (unimplementedTeamStore) ReorderRequestExamples(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
+	return errStubbed
+}

@@ -143,6 +143,20 @@ type Request struct {
 	AuthJwtPrefix  string `json:"auth_jwt_prefix"`
 }
 
+type RequestExample struct {
+	ID          uuid.UUID       `json:"id"`
+	RequestID   uuid.UUID       `json:"request_id"`
+	Name        string          `json:"name"`
+	Status      int32           `json:"status"`
+	Headers     json.RawMessage `json:"headers"`
+	ContentType string          `json:"content_type"`
+	Body        []byte          `json:"body"`
+	BodySize    int32           `json:"body_size"`
+	SortOrder   int32           `json:"sort_order"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
 type Session struct {
 	TokenHash []byte    `json:"token_hash"`
 	UserID    uuid.UUID `json:"user_id"`

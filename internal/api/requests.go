@@ -109,9 +109,12 @@ type requestDetailResponse struct {
 	// in the project's request list.
 	PreScript  string `json:"pre_script"`
 	PostScript string `json:"post_script"`
+
+	// ExampleCount lets the client badge saved examples without fetching them.
+	ExampleCount int64 `json:"example_count"`
 }
 
-func newRequestDetailResponse(request db.Request) requestDetailResponse {
+func newRequestDetailResponse(request db.Request, exampleCount int64) requestDetailResponse {
 	return requestDetailResponse{
 		requestResponse: newRequestResponse(request),
 		Headers:         request.Headers,
@@ -119,6 +122,7 @@ func newRequestDetailResponse(request db.Request) requestDetailResponse {
 		Body:            request.Body,
 		PreScript:       request.PreScript,
 		PostScript:      request.PostScript,
+		ExampleCount:    exampleCount,
 	}
 }
 
@@ -269,7 +273,7 @@ func (a *api) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeJSON(w, r, http.StatusOK, newRequestDetailResponse(request))
+	a.writeRequestDetail(w, r, request)
 }
 
 // handleUpdateRequest applies a partial update to a request's name, method,
@@ -393,7 +397,7 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeJSON(w, r, http.StatusOK, newRequestDetailResponse(request))
+	a.writeRequestDetail(w, r, request)
 }
 
 // handleMoveRequest puts a request into a folder of the same project, or at
@@ -567,4 +571,16 @@ func validateRequestURL(url string) error {
 		return fmt.Errorf("url must be at most %d characters", maxRequestURLLength)
 	}
 	return nil
+}
+
+// writeRequestDetail writes the full request with its example count, the
+// shape GET and PATCH on /requests/{id} share.
+func (a *api) writeRequestDetail(w http.ResponseWriter, r *http.Request, request db.Request) {
+	exampleCount, err := a.store.CountRequestExamples(r.Context(), request.ID)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	a.writeJSON(w, r, http.StatusOK, newRequestDetailResponse(request, exampleCount))
 }
