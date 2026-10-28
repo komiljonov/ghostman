@@ -13,11 +13,12 @@ import (
 // requestDetail is the decoded GET/PATCH /requests/{id} response.
 type requestDetail struct {
 	requestResponse
-	Headers     json.RawMessage `json:"headers"`
-	QueryParams json.RawMessage `json:"query_params"`
-	Body        json.RawMessage `json:"body"`
-	PreScript   string          `json:"pre_script"`
-	PostScript  string          `json:"post_script"`
+	Headers      json.RawMessage `json:"headers"`
+	QueryParams  json.RawMessage `json:"query_params"`
+	Body         json.RawMessage `json:"body"`
+	PreScript    string          `json:"pre_script"`
+	PostScript   string          `json:"post_script"`
+	ExampleCount int64           `json:"example_count"`
 }
 
 func (f teamsFixture) getRequestDetail(t *testing.T, token, requestID string) requestDetail {

@@ -102,6 +102,13 @@ func (a *api) routes() http.Handler {
 	mux.Handle("PATCH /api/v1/proxies/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateProxy)))
 	mux.Handle("DELETE /api/v1/proxies/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteProxy)))
 
+	mux.Handle("POST /api/v1/requests/{request_id}/examples", a.requireAuth(http.HandlerFunc(a.handleCreateExample)))
+	mux.Handle("GET /api/v1/requests/{request_id}/examples", a.requireAuth(http.HandlerFunc(a.handleListExamples)))
+	mux.Handle("PUT /api/v1/examples/order", a.requireAuth(http.HandlerFunc(a.handleReorderExamples)))
+	mux.Handle("GET /api/v1/examples/{id}", a.requireAuth(http.HandlerFunc(a.handleGetExample)))
+	mux.Handle("PATCH /api/v1/examples/{id}", a.requireAuth(http.HandlerFunc(a.handleUpdateExample)))
+	mux.Handle("DELETE /api/v1/examples/{id}", a.requireAuth(http.HandlerFunc(a.handleDeleteExample)))
+
 	// Webhook endpoints are managed here; the capturing itself happens only on
 	// the capture hosts (withCapture), never on this router.
 	mux.Handle("POST /api/v1/projects/{project_id}/webhooks", a.requireAuth(http.HandlerFunc(a.handleCreateWebhook)))

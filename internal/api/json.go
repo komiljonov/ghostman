@@ -88,10 +88,15 @@ const (
 
 	// messageProxyNotFound also covers a proxy in a project the caller cannot
 	// reach.
-	messageProxyNotFound      = "proxy not found"
-	messageProxyNameTaken     = "a proxy with that name already exists in this project"
-	messageHooksNotConfigured = "webhook capture is not configured on this server (HOOKS_DOMAINS)"
-	messageSecretValue        = "secret values are never stored on the server; keep them in the desktop client"
+	messageProxyNotFound  = "proxy not found"
+	messageProxyNameTaken = "a proxy with that name already exists in this project"
+
+	// messageExampleNotFound also covers an example under a request the caller
+	// cannot reach.
+	messageExampleNotFound     = "example not found"
+	messageExampleBodyTooLarge = "example body must be at most 1MB"
+	messageHooksNotConfigured  = "webhook capture is not configured on this server (HOOKS_DOMAINS)"
+	messageSecretValue         = "secret values are never stored on the server; keep them in the desktop client"
 
 	//nolint:gosec // G101: a message shown to clients, not a credential.
 	messageInvalidToken = "invalid or expired token"

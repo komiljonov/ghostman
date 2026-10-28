@@ -37,6 +37,16 @@ type stubStore struct {
 
 	proxy    db.Proxy
 	proxyErr error
+
+	example    db.RequestExample
+	exampleErr error
+}
+
+func (s stubStore) GetRequestExampleByID(_ context.Context, _ uuid.UUID) (db.RequestExample, error) {
+	if s.exampleErr != nil {
+		return db.RequestExample{}, s.exampleErr
+	}
+	return s.example, nil
 }
 
 func (s stubStore) GetProxyByID(_ context.Context, _ uuid.UUID) (db.Proxy, error) {
@@ -540,6 +550,47 @@ func TestRequireProxyAccess(t *testing.T) {
 			}
 			if errors.Is(err, ErrNoProjectAccess) {
 				t.Error("error reveals the project, and so that the proxy exists")
+			}
+		})
+	}
+}
+
+func TestRequireExampleAccess(t *testing.T) {
+	projectID, requestID, exampleID, userID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	example := db.RequestExample{ID: exampleID, RequestID: requestID}
+	request := db.Request{ID: requestID, ProjectID: projectID}
+	reachable := db.GetProjectForUserRow{Project: db.Project{ID: projectID}}
+	boom := errors.New("connection reset")
+
+	tests := []struct {
+		name    string
+		store   stubStore
+		wantErr error
+	}{
+		{name: "missing example", store: stubStore{exampleErr: pgx.ErrNoRows}, wantErr: ErrNoExampleAccess},
+		{name: "request gone", store: stubStore{example: example, requestErr: pgx.ErrNoRows}, wantErr: ErrNoExampleAccess},
+		{name: "project out of reach", store: stubStore{example: example, request: request, projectErr: pgx.ErrNoRows}, wantErr: ErrNoExampleAccess},
+		{name: "database failure", store: stubStore{exampleErr: boom}, wantErr: boom},
+		{name: "reachable", store: stubStore{example: example, request: request, project: reachable}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.store).RequireExampleAccess(t.Context(), exampleID, userID)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("RequireExampleAccess() error: %v", err)
+				}
+				if got.ID != exampleID {
+					t.Errorf("example id = %s, want %s", got.ID, exampleID)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("RequireExampleAccess() error = %v, want %v", err, tt.wantErr)
+			}
+			if errors.Is(err, ErrNoProjectAccess) || errors.Is(err, ErrNoRequestAccess) {
+				t.Error("error reveals the request or project, and so that the example exists")
 			}
 		})
 	}
