@@ -173,7 +173,12 @@ SELECT id, project_id, folder_id, name, method, url, follow_redirects,
        auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload,
        auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix,
        response_filter, proxy_mode, proxy_id,
-       sort_order, created_at, updated_at
+       sort_order, created_at, updated_at,
+       (
+           SELECT count(*)
+           FROM request_examples
+           WHERE request_examples.request_id = requests.id
+       ) AS example_count
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at
@@ -207,10 +212,13 @@ type ListRequestsByProjectRow struct {
 	SortOrder           int32      `json:"sort_order"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
+	ExampleCount        int64      `json:"example_count"`
 }
 
 // Every request of the project in one flat list, without headers, query
 // parameters or body; the client places them in the folder tree.
+// example_count is one index lookup per request on
+// request_examples_request_id_idx, so the client can badge without fetching.
 func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID) ([]ListRequestsByProjectRow, error) {
 	rows, err := q.db.Query(ctx, listRequestsByProject, projectID)
 	if err != nil {
@@ -248,6 +256,7 @@ func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ExampleCount,
 		); err != nil {
 			return nil, err
 		}

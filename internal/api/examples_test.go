@@ -451,3 +451,47 @@ func TestExampleRoutesRequireAuth(t *testing.T) {
 		}
 	}
 }
+
+func TestRequestListCarriesExampleCount(t *testing.T) {
+	f, owner, team, project := newFolderProject(t, "example-list-count")
+	folder := f.createFolder(t, owner.Token, project.ID, "F", nil)
+	none := f.createRequest(t, owner.Token, project.ID, map[string]any{"name": "None"})
+	two := f.createRequest(t, owner.Token, project.ID, map[string]any{"name": "Two"})
+	nested := f.createRequest(t, owner.Token, project.ID, map[string]any{"name": "Nested", "folder_id": folder.ID})
+
+	f.createExample(t, owner.Token, two.ID, map[string]any{"name": "A"})
+	f.createExample(t, owner.Token, two.ID, map[string]any{"name": "B", "body": b64([]byte("x"))})
+	gone := f.createExample(t, owner.Token, nested.ID, map[string]any{"name": "C"})
+	f.createExample(t, owner.Token, nested.ID, map[string]any{"name": "D"})
+	f.createExample(t, owner.Token, nested.ID, map[string]any{"name": "E"})
+	if rec := do(t, f.handler, http.MethodDelete, "/api/v1/examples/"+gone.ID, "", owner.Token); rec.Code != http.StatusNoContent {
+		t.Fatalf("deleting an example: status = %d", rec.Code)
+	}
+
+	// Another project's examples must not leak into this project's counts.
+	other := f.createProject(t, owner.Token, team.ID, "Other")
+	elsewhere := f.createRequest(t, owner.Token, other.ID, map[string]any{"name": "Elsewhere"})
+	f.createExample(t, owner.Token, elsewhere.ID, map[string]any{"name": "X"})
+
+	rec := do(t, f.handler, http.MethodGet, "/api/v1/projects/"+project.ID+"/requests", "", owner.Token)
+	var items []requestListItem
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("list: status = %d (body: %s)", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"example_count":0`) {
+		t.Errorf("a request without examples does not serialize example_count 0: %s", rec.Body)
+	}
+
+	want := map[string]int64{none.ID: 0, two.ID: 2, nested.ID: 2}
+	if len(items) != len(want) {
+		t.Fatalf("list has %d requests, want %d", len(items), len(want))
+	}
+	for _, item := range items {
+		if item.ExampleCount != want[item.ID] {
+			t.Errorf("%s example_count = %d, want %d", item.Name, item.ExampleCount, want[item.ID])
+		}
+		if detail := f.getRequestDetail(t, owner.Token, item.ID); detail.ExampleCount != item.ExampleCount {
+			t.Errorf("%s: list says %d, GET says %d", item.Name, item.ExampleCount, detail.ExampleCount)
+		}
+	}
+}
