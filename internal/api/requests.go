@@ -96,6 +96,14 @@ type requestResponse struct {
 	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
+// requestListItem is one entry of the project's request list: the request plus
+// its example count, so the client can badge without fetching examples.
+type requestListItem struct {
+	requestResponse
+
+	ExampleCount int64 `json:"example_count"`
+}
+
 // requestDetailResponse is the full request, returned by GET and PATCH on
 // /requests/{id}. The list leaves these columns out.
 type requestDetailResponse struct {
@@ -232,22 +240,25 @@ func (a *api) handleListRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requests := make([]requestResponse, 0, len(rows))
+	requests := make([]requestListItem, 0, len(rows))
 	for _, row := range rows {
-		requests = append(requests, requestResponse{
-			ID:              row.ID.String(),
-			ProjectID:       row.ProjectID.String(),
-			FolderID:        optionalUUIDString(row.FolderID),
-			Name:            row.Name,
-			Method:          row.Method,
-			URL:             row.Url,
-			FollowRedirects: row.FollowRedirects,
-			Auth:            authFromRequestRow(row),
-			ResponseFilter:  row.ResponseFilter,
-			Proxy:           newNodeProxyResponse(row.ProxyMode, row.ProxyID),
-			SortOrder:       row.SortOrder,
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+		requests = append(requests, requestListItem{
+			requestResponse: requestResponse{
+				ID:              row.ID.String(),
+				ProjectID:       row.ProjectID.String(),
+				FolderID:        optionalUUIDString(row.FolderID),
+				Name:            row.Name,
+				Method:          row.Method,
+				URL:             row.Url,
+				FollowRedirects: row.FollowRedirects,
+				Auth:            authFromRequestRow(row),
+				ResponseFilter:  row.ResponseFilter,
+				Proxy:           newNodeProxyResponse(row.ProxyMode, row.ProxyID),
+				SortOrder:       row.SortOrder,
+				CreatedAt:       row.CreatedAt,
+				UpdatedAt:       row.UpdatedAt,
+			},
+			ExampleCount: row.ExampleCount,
 		})
 	}
 

@@ -52,8 +52,9 @@ endpoints without discussion. Start from the backlog below.
   CASCADE; access is the request's (authz.RequireExampleAccess → 404). The body
   is bytea, base64 in JSON, hard-capped at 1 MiB (db.MaxExampleBodySize; CHECK
   request_examples_body_size backstops it and keeps body_size consistent)
-  because examples SYNC. The list is summaries only; GET/PATCH /requests/{id}
-  carry example_count.
+  because examples SYNC. The list is summaries only; the project request list
+  and GET/PATCH /requests/{id} carry example_count (one lookup per request on
+  the request_id index, never a separate query per request).
 
 ## Backlog (deferred, not designed)
 - Sync protocol between desktop client and server — the next big design item

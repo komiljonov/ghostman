@@ -67,13 +67,20 @@ WHERE id = $1;
 -- name: ListRequestsByProject :many
 -- Every request of the project in one flat list, without headers, query
 -- parameters or body; the client places them in the folder tree.
+-- example_count is one index lookup per request on
+-- request_examples_request_id_idx, so the client can badge without fetching.
 SELECT id, project_id, folder_id, name, method, url, follow_redirects,
        auth_type, auth_bearer_token, auth_basic_username, auth_basic_password,
        auth_api_key_name, auth_api_key_value, auth_api_key_in,
        auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload,
        auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix,
        response_filter, proxy_mode, proxy_id,
-       sort_order, created_at, updated_at
+       sort_order, created_at, updated_at,
+       (
+           SELECT count(*)
+           FROM request_examples
+           WHERE request_examples.request_id = requests.id
+       ) AS example_count
 FROM requests
 WHERE project_id = $1
 ORDER BY folder_id NULLS FIRST, sort_order, created_at;

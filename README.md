@@ -1,4 +1,4 @@
-# Ghostman
+without headers, query params or body, each with its `example_count`. |# Ghostman
 
 Sync server for the Ghostman API client.
 
@@ -647,8 +647,9 @@ sync like the rest of the project.
   `400 example body must be at most 1MB`. No body is `null`.
 - `GET /requests/{request_id}/examples` returns summaries only (with
   `body_size`), so listing stays cheap; `GET /examples/{id}` has the headers
-  and body. `GET` and `PATCH /requests/{id}` carry `example_count`, so the
-  client can show a badge without listing.
+  and body. `GET /projects/{project_id}/requests` and `GET`/`PATCH
+  /requests/{id}` carry `example_count`, so the client can show a badge
+  without listing.
 - `PATCH` is partial: an absent or `null` field is left alone, a `body` of
   `""` clears it, and `updated_at` moves on every update.
 - New examples go last; `PUT /examples/order` writes 0-based positions.
