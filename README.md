@@ -125,9 +125,10 @@ alias for `Invoke-WebRequest`, which takes different flags.
 | DELETE | `/api/v1/proxies/{id}`    | bearer | Project access. `204`; folders and requests using it keep mode `proxy` with `proxy_id: null`. |
 | PUT    | `/api/v1/proxies/order`   | bearer | Project access. `{project_id, proxy_ids}` must list every proxy of the project. `204`. |
 | POST   | `/api/v1/projects/{project_id}/requests` | bearer | Project access. `{name, folder_id?, method?, url?}` → `201`; appended after its siblings. `method` defaults to `GET`. `400` if the folder is not in this project. |
-| GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query or path params or body, each with its `example_count`. |
-| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params`, `path_params` and `body`, plus `example_count`. |
-| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, path_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?, proxy?}` → `200` with the full request; partial update, and a present `headers`, `query_params`, `path_params` or `body` replaces that value whole. |
+| GET    | `/api/v1/projects/{project_id}/requests` | bearer | Project access. Every request of the project as a flat list, without headers, query params or body, each with its `example_count`. |
+| GET    | `/api/v1/projects/{project_id}/variable-keys` | bearer | Project access. `{keys}`: the distinct `{{var}}` keys the project's requests and folders use, sorted. |
+| GET    | `/api/v1/requests/{id}`  | bearer | Project access. The full request, including `headers`, `query_params` and `body`, plus `example_count`. |
+| PATCH  | `/api/v1/requests/{id}`  | bearer | Project access. `{name?, method?, url?, headers?, query_params?, body?, follow_redirects?, auth?, response_filter?, pre_script?, post_script?, proxy?}` → `200` with the full request; partial update, and a present `headers`, `query_params` or `body` replaces that value whole. |
 | POST   | `/api/v1/requests/{id}/move` | bearer | Project access. `{folder_id, sort_order?}` → `200`; `folder_id: null` is the root. |
 | PUT    | `/api/v1/requests/order` | bearer | Project access. `{project_id, folder_id, request_ids}`; must be exactly the requests in that folder. `204`. |
 | DELETE | `/api/v1/requests/{id}`  | bearer | Project access. `204`; its saved examples go with it. |
@@ -593,24 +594,6 @@ exactly like a missing id.
   parameters. Order is kept, and keys and values are stored exactly as sent:
   what you PATCH is what you GET.
 
-**Path parameters** are the values for `:segments` in the url
-(`{{base}}/users/:id` → a row with key `id`), an ordered array of `{key, value}`
-rows with no `enabled`:
-
-```json
-[{ "key": "id", "value": "{{user_id}}" }]
-```
-
-- The keys are derived **client-side** from the url; the server stores the rows
-  opaquely and never parses the url or checks that keys match its segments.
-- Same rules as headers otherwise: set with `PATCH /requests/{id}` as a whole
-  array (`[]` clears, absent or `null` leaves it), at most 100 rows, `key`
-  non-empty up to 200 characters, `value` possibly empty up to 8192 and may
-  hold `{{variables}}`, duplicates allowed, order kept. Any other field
-  (including `enabled`) is a `400` naming the row, e.g.
-  `path_params[0].enabled is not a known field`.
-- In `GET`/`PATCH /requests/{id}`, not in the project request list.
-
 **The body** is a tagged union on `type`, set with `PATCH /requests/{id}`:
 
 ```json
@@ -650,6 +633,23 @@ rows with no `enabled`:
 - **File bytes and paths never reach the server.** They stay in the desktop
   client, like secret variable values; the server syncs only which fields a
   multipart body has and the names to show for them.
+
+## Variable keys
+
+`GET /projects/{project_id}/variable-keys` returns `{"keys": [...]}`: every
+distinct variable key the project's requests and folders refer to, sorted.
+Keys only — no values and no locations.
+
+- A token is `{{key}}` where the key is one or more characters without `{` or
+  `}`, taken exactly (no trimming, case-sensitive) — the client resolver's
+  grammar. `{{$…}}` tokens are generated per send and never listed.
+- Scanned: url; header and query-param keys and values; a raw body's content;
+  form keys and values; multipart keys and text values (not a file row's
+  `file_name`); every auth field, including those of an inactive auth type.
+  Disabled rows count: they still refer to the key.
+- Scripts are not scanned for `{{…}}`. A key counts there only as the string
+  literal passed to `gm.environment.get`, `.set` or `.unset` (`"…"`, `'…'`,
+  or a backtick literal without `${}`); a computed argument is not a key.
 
 ## Saved response examples
 

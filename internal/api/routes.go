@@ -81,6 +81,7 @@ func (a *api) routes() http.Handler {
 
 	mux.Handle("POST /api/v1/projects/{project_id}/requests", a.requireAuth(http.HandlerFunc(a.handleCreateRequest)))
 	mux.Handle("GET /api/v1/projects/{project_id}/requests", a.requireAuth(http.HandlerFunc(a.handleListRequests)))
+	mux.Handle("GET /api/v1/projects/{project_id}/variable-keys", a.requireAuth(http.HandlerFunc(a.handleListVariableKeys)))
 
 	// Body-scoped like folders/order: the folder may be the project root.
 	mux.Handle("PUT /api/v1/requests/order", a.requireAuth(http.HandlerFunc(a.handleReorderRequests)))

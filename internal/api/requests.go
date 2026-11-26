@@ -43,16 +43,15 @@ type requestCreateRequest struct {
 
 // requestUpdateRequest is a partial update: a missing (or null) field keeps
 // its current value. None of these fields can be null in the table, so null
-// has no other meaning to carry. headers, query_params, path_params and body,
-// when present, replace the whole value; they are decoded raw so their
-// validators can report errors by path.
+// has no other meaning to carry. headers, query_params and body, when present,
+// replace the whole value; they are decoded raw so their validators can report
+// errors by path.
 type requestUpdateRequest struct {
 	Name            *string         `json:"name"`
 	Method          *string         `json:"method"`
 	URL             *string         `json:"url"`
 	Headers         json.RawMessage `json:"headers"`
 	QueryParams     json.RawMessage `json:"query_params"`
-	PathParams      json.RawMessage `json:"path_params"`
 	Body            json.RawMessage `json:"body"`
 	FollowRedirects *string         `json:"follow_redirects"`
 	Auth            json.RawMessage `json:"auth"`
@@ -112,7 +111,6 @@ type requestDetailResponse struct {
 
 	Headers     json.RawMessage `json:"headers"`
 	QueryParams json.RawMessage `json:"query_params"`
-	PathParams  json.RawMessage `json:"path_params"`
 	Body        json.RawMessage `json:"body"`
 
 	// Scripts can be large, so like headers and body they are only here, not
@@ -129,7 +127,6 @@ func newRequestDetailResponse(request db.Request, exampleCount int64) requestDet
 		requestResponse: newRequestResponse(request),
 		Headers:         request.Headers,
 		QueryParams:     request.QueryParams,
-		PathParams:      request.PathParams,
 		Body:            request.Body,
 		PreScript:       request.PreScript,
 		PostScript:      request.PostScript,
@@ -326,10 +323,6 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}
-	if params.PathParams, err = parsePathParamRows(req.PathParams, "path_params"); err != nil {
-		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
-		return
-	}
 
 	if params.Body, err = parseRequestBody(req.Body); err != nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest, err.Error())
@@ -380,9 +373,9 @@ func (a *api) handleUpdateRequest(w http.ResponseWriter, r *http.Request) {
 
 	if req.Name == nil && req.Method == nil && req.URL == nil && req.FollowRedirects == nil && auth == nil &&
 		req.ResponseFilter == nil && req.PreScript == nil && req.PostScript == nil && proxy == nil &&
-		params.Headers == nil && params.QueryParams == nil && params.PathParams == nil && params.Body == nil {
+		params.Headers == nil && params.QueryParams == nil && params.Body == nil {
 		a.writeError(w, r, http.StatusBadRequest, codeBadRequest,
-			"provide at least one of name, method, url, headers, query_params, path_params, body, follow_redirects, auth, response_filter, pre_script, post_script or proxy")
+			"provide at least one of name, method, url, headers, query_params, body, follow_redirects, auth, response_filter, pre_script, post_script or proxy")
 		return
 	}
 

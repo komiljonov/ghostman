@@ -5,6 +5,10 @@ Audited 2026-11-26 from the code: server `ghostman` at `fab939e` (main), app
 **WIP** below). Sessions that complete or change a feature must update this
 file in the same branch.
 
+Updated 2026-11-26: server path_params retired, `GET /projects/{id}/variable-keys`
+added; the app's path/dynamic-variable WIP is now committed (`f724837`). App
+lint/test results below are from the audit and were not re-run since.
+
 Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ## Implemented
@@ -20,7 +24,8 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 - Requests: name/method/url/folder/order, move, 0-based reorder — server: `requests` (`20260925102950`), `internal/api/requests.go`
 - Request headers + query params: `{key, value, enabled}` rows, ≤100 rows — server: `internal/api/key_value_rows.go`
 - Request body: tagged union `none|raw|form|multipart`; multipart file rows hold a display name only — server: `internal/api/request_body.go`, `multipart_rows.go`
-- Path params: `{key, value}` rows stored opaquely, detail-only — server: `20261126132415_request_path_params.sql`, `parsePathParamRows`
+- Variable keys: `GET /projects/{id}/variable-keys` → sorted distinct `{{key}}` keys from urls, rows, text bodies, all auth fields (any type) of requests + folders, plus `gm.environment.get/set/unset` literals in scripts; `{{$…}}` excluded — server: `ListProjectVariableSources` (`internal/db/queries/variable_keys.sql`), `internal/api/variable_keys.go`
+- Path params retired: `requests.path_params` added (`20261126132415`) and dropped (`20261126150353`); PATCH with `path_params` is now a 400 unknown field — server: `internal/db/migrations/20261126150353_drop_request_path_params.sql`
 - Cascading `follow_redirects` (`inherit|global|on|off`) on folders + requests — server: `20261007061918_follow_redirects.sql`, `internal/api/node_settings.go`
 - Cascading auth on folders + requests: `inherit|none|bearer|basic|api_key|jwt` (jwt = template HS256/384/512, client signs) — server: `20261007081844_auth_config.sql`, `20261027054206_auth_jwt.sql`, `internal/api/node_auth.go`
 - Cascading proxy setting `{mode: inherit|global|none|proxy, proxy_id}` + per-project proxy objects (`http|https|socks5`, no password column) — server: `proxies` (`20261023054104`), `/projects/{id}/proxies`, `/proxies/{id}`, `PUT /proxies/order`
@@ -77,9 +82,9 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ## Partial / flagged
 
-- **WIP, uncommitted in the app:** path-variable substitution (`:id` → value) in the engine and history (`internal/engine/pathvars.go`, `internal/store/migrations/00014_history_path_params.sql`); frontend wiring under way (`frontend/src/urlParams.ts`, `frontend/wailsjs/go/models.ts` modified). Server side is shipped.
-- **WIP, uncommitted in the app:** dynamic vars `$uuid $now $now±N $timestamp $isoTimestamp $date $randomInt $randomHex` — `internal/engine/dynamic.go`; no UI hint or completion yet (at HEAD only JWT `{{$now±N}}` exists).
-- App `task lint` fails, all in WIP files: `internal/envs/envs_test.go:299,302,306` (errorlint: compare with `errors.Is`), `internal/engine/dynamic.go:82` (gocritic unlambda); one gofmt report was already gone on re-check.
+- **App/server mismatch:** the app (`f724837`) substitutes `:id` path variables from synced `path_params` rows and still PATCHes `path_params` (`internal/api/requests.go:42,68`, `request_model.go:115`); the server no longer accepts it, so those saves 400 until the app migrates path values into urls. Committed in `b24d112` (`internal/engine/pathvars.go`, `internal/store/migrations/00014_history_path_params.sql`).
+- Dynamic vars (committed in `b24d112`) `$uuid $now $now±N $timestamp $isoTimestamp $date $randomInt $randomHex` — `internal/engine/dynamic.go`; UI hint/completion not re-checked since the audit.
+- At audit time (before `f724837`) app `task lint` failed, all in then-uncommitted files: `internal/envs/envs_test.go:299,302,306` (errorlint: compare with `errors.Is`), `internal/engine/dynamic.go:82` (gocritic unlambda); one gofmt report was already gone on re-check.
 - App `TestMemoryBudget` (`internal/scripting`) failed in the full `task test` run but passes alone — timing/load-sensitive.
 - App skips: `internal/engine/multipart_test.go:196` `t.Skip("large upload")` under `-short`; `internal/codegen/roundtrip_test.go:197` `t.Skipf("%s not available")` when curl/node/python/go is missing.
 - App "for now" notes: `internal/codegen/codegen.go:41` "Options are the per-target choices (curl only for now)"; `internal/importer/openapi.go:391` "Ghostman has no cookies yet"; OAuth etc. imported as Inherit — `internal/importer/mapper.go:515`, `openapi.go:914`.
@@ -91,7 +96,7 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ### Docs vs code
 
-- CLAUDE.md "Status" lists only steps 1–7c (+ path_params); follow_redirects, auth/jwt, proxies, scripts, response_filter, webhooks, examples are described in later sections but not in the status list.
+- CLAUDE.md "Status" lists only steps 1–7c; follow_redirects, auth/jwt, proxies, scripts, response_filter, webhooks, examples are described in later sections but not in the status list.
 - Not in CLAUDE.md (README covers them): `GET /api/v1/meta`, `GET /api/v1/hello`, 30-day session TTL + expiry sweep, 20-webhooks-per-project cap, `cmd/upload` / `build-linux` / `upload` tasks.
 - README "Not implemented yet" is stale: "Sync and every other product table" predates webhooks, proxies and examples; "Projects hold folders, requests and environments" omits proxies, webhooks and examples; "a user who still owns a team cannot be deleted" — there is no user-deletion endpoint at all.
 - CLAUDE.md backlog says request duplication is deferred; the app ships request duplicate by composing create + patch (no server endpoint; folders/projects still cannot be duplicated).

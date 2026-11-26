@@ -38,9 +38,6 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
    - 7c: body writable (tagged union none|raw|form|multipart; form reuses the row validator;
      multipart rows are kind text|file, file rows carry a DISPLAY name only — file
      bytes and paths are client-local, never stored, like secret values)
-   - path_params: {key, value} rows (no enabled), same bounds as headers via
-     parseRowArray; keys are derived client-side from :segments, stored opaquely;
-     detail only, not in the list
 
 Anything beyond this is new design work: do not invent product tables or
 endpoints without discussion. Start from the backlog below.
@@ -53,6 +50,13 @@ STATUS.md is the code-verified feature inventory (server + app): a session that 
 - sort_order is 0-based for new code (environments, variables, requests). Older
   reorder endpoints (projects, folders) still write 1-based positions.
 - Tree writes (folder/request moves and reorders) run under db LockProject.
+- path_params was shipped and then retired (dropped by migration
+  20261126150353); path variables are client-only. Do not reintroduce it.
+- GET /projects/{id}/variable-keys: one query (ListProjectVariableSources,
+  requests UNION ALL folders) + Go extraction in variable_keys.go. Token
+  grammar mirrors the client resolver ({{key}}, key = no braces, exact; {{$…}}
+  excluded); scripts count only gm.environment.get/set/unset string literals.
+  A new field that can hold {{vars}} must be added to that query and scan.
 - Saved response examples (request_examples) hang off a request, ON DELETE
   CASCADE; access is the request's (authz.RequireExampleAccess → 404). The body
   is bytea, base64 in JSON, hard-capped at 1 MiB (db.MaxExampleBodySize; CHECK
