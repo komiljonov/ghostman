@@ -137,10 +137,11 @@ type Request struct {
 	AuthJwtSecret       string `json:"auth_jwt_secret"`
 	AuthJwtSecretBase64 bool   `json:"auth_jwt_secret_base64"`
 	// JWT claims as authored (JSON text with {{vars}} and {{$now+N}}); opaque to the server, max 8192.
-	AuthJwtPayload string `json:"auth_jwt_payload"`
-	AuthJwtAddTo   string `json:"auth_jwt_add_to"`
-	AuthJwtName    string `json:"auth_jwt_name"`
-	AuthJwtPrefix  string `json:"auth_jwt_prefix"`
+	AuthJwtPayload string          `json:"auth_jwt_payload"`
+	AuthJwtAddTo   string          `json:"auth_jwt_add_to"`
+	AuthJwtName    string          `json:"auth_jwt_name"`
+	AuthJwtPrefix  string          `json:"auth_jwt_prefix"`
+	PathParams     json.RawMessage `json:"path_params"`
 }
 
 type RequestExample struct {

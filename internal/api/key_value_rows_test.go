@@ -15,6 +15,7 @@ type requestDetail struct {
 	requestResponse
 	Headers      json.RawMessage `json:"headers"`
 	QueryParams  json.RawMessage `json:"query_params"`
+	PathParams   json.RawMessage `json:"path_params"`
 	Body         json.RawMessage `json:"body"`
 	PreScript    string          `json:"pre_script"`
 	PostScript   string          `json:"post_script"`

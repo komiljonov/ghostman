@@ -27,14 +27,15 @@ WHERE id = $1;
 -- name: UpdateRequest :one
 -- A partial update merged in SQL, so it is atomic against concurrent edits:
 -- NULL keeps the current value. An empty url is a real value, not "keep".
--- headers, query_params and body each replace the whole value; the caller has
--- already validated and normalised them.
+-- headers, query_params, path_params and body each replace the whole value;
+-- the caller has already validated and normalised them.
 UPDATE requests
 SET name = COALESCE(sqlc.narg(name), name),
     method = COALESCE(sqlc.narg(method), method),
     url = COALESCE(sqlc.narg(url), url),
     headers = COALESCE(sqlc.narg(headers)::jsonb, headers),
     query_params = COALESCE(sqlc.narg(query_params)::jsonb, query_params),
+    path_params = COALESCE(sqlc.narg(path_params)::jsonb, path_params),
     body = COALESCE(sqlc.narg(body)::jsonb, body),
     follow_redirects = COALESCE(sqlc.narg(follow_redirects), follow_redirects),
     auth_type = COALESCE(sqlc.narg(auth_type), auth_type),
@@ -65,8 +66,8 @@ DELETE FROM requests
 WHERE id = $1;
 
 -- name: ListRequestsByProject :many
--- Every request of the project in one flat list, without headers, query
--- parameters or body; the client places them in the folder tree.
+-- Every request of the project in one flat list, without headers, query or
+-- path parameters or body; the client places them in the folder tree.
 -- example_count is one index lookup per request on
 -- request_examples_request_id_idx, so the client can badge without fetching.
 SELECT id, project_id, folder_id, name, method, url, follow_redirects,
