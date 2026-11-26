@@ -45,6 +45,8 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
 Anything beyond this is new design work: do not invent product tables or
 endpoints without discussion. Start from the backlog below.
 
+STATUS.md is the code-verified feature inventory (server + app): a session that completes or changes a feature updates it in the same branch.
+
 ## Domain notes
 - Request bodies are capped at 2 MiB server-wide (413); readJSON errors go
   through writeBodyError.
