@@ -28,17 +28,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
+
+	"github.com/komiljonov/ghostman/internal/deploy"
 )
 
 const (
@@ -50,17 +48,11 @@ const (
 
 	// tempName is what the upload is written to before being renamed.
 	tempName = ".ghostman-server.upload"
-
-	dialTimeout = 15 * time.Second
 )
 
 type config struct {
-	Host string `env:"DEPLOY_HOST,required,notEmpty"`
-	Port int    `env:"DEPLOY_PORT" envDefault:"22"`
-	User string `env:"DEPLOY_USER,required,notEmpty"`
-	// unset removes the password from this process's environment once read.
-	Password string `env:"DEPLOY_PASSWORD,required,notEmpty,unset"`
-	Dir      string `env:"DEPLOY_DIR,required,notEmpty"`
+	deploy.SSH
+	Dir string `env:"DEPLOY_DIR,required,notEmpty"`
 }
 
 func main() {
@@ -98,41 +90,18 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("hashing %s: %w", localBinary, err)
 	}
-	logStep("binary", "%s, %s, sha256 %s", localBinary, formatBytes(info.Size()), localSum[:12])
+	deploy.LogStep("binary", "%s, %s, sha256 %s", localBinary, formatBytes(info.Size()), localSum[:12])
 
-	hostKeys, err := knownHostsCallback()
+	client, err := deploy.Connect(cfg.SSH)
 	if err != nil {
 		return err
 	}
-
-	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
-	logStep("connecting", "%s@%s ...", cfg.User, addr)
-
-	// Wrapped to report which key was accepted.
-	var acceptedKey string
-	dialStart := time.Now()
-	client, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
-		User: cfg.User,
-		Auth: []ssh.AuthMethod{ssh.Password(cfg.Password)},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			if keyErr := hostKeys(hostname, remote, key); keyErr != nil {
-				return keyErr
-			}
-			acceptedKey = strings.ToUpper(strings.TrimPrefix(key.Type(), "ssh-")) + " " + ssh.FingerprintSHA256(key)
-			return nil
-		},
-		Timeout: dialTimeout,
-	})
-	if err != nil {
-		return dialError(err, cfg, addr)
-	}
 	defer client.Close()
-	logStep("connected", "in %s, host key %s (known_hosts)", roundDuration(time.Since(dialStart)), acceptedKey)
 
 	tempPath := path.Join(cfg.Dir, tempName)
 	target := path.Join(cfg.Dir, remoteName)
 
-	logStep("uploading", "%s", tempPath)
+	deploy.LogStep("uploading", "%s", tempPath)
 	progress := newProgress(info.Size())
 	uploadStart := time.Now()
 	if err := scpSend(client, cfg.Dir, tempName, info.Size(), progress.reader(file)); err != nil {
@@ -141,8 +110,8 @@ func run() error {
 	}
 	progress.finish()
 	elapsed := time.Since(uploadStart)
-	logStep("uploaded", "%s in %s (%s/s)",
-		formatBytes(info.Size()), roundDuration(elapsed), formatBytes(int64(float64(info.Size())/elapsed.Seconds())))
+	deploy.LogStep("uploaded", "%s in %s (%s/s)",
+		formatBytes(info.Size()), deploy.RoundDuration(elapsed), formatBytes(int64(float64(info.Size())/elapsed.Seconds())))
 
 	if err := verifyRemote(client, tempPath, localSum); err != nil {
 		return err
@@ -150,45 +119,25 @@ func run() error {
 
 	// Rename into place: atomic, and safe while the old binary is running,
 	// which keeps the file it started from until it exits.
-	logStep("installing", "%s", target)
-	if err := runRemote(client, "mv -f "+shellQuote(tempPath)+" "+shellQuote(target)); err != nil {
+	deploy.LogStep("installing", "%s", target)
+	if err := deploy.Run(client, "mv -f "+deploy.ShellQuote(tempPath)+" "+deploy.ShellQuote(target)); err != nil {
 		return fmt.Errorf("moving the upload into place: %w", err)
 	}
 
-	logStep("done", "in %s; restart the service on the server to run the new binary", roundDuration(time.Since(started)))
+	deploy.LogStep("done", "in %s; run `task restart` to start the new binary", deploy.RoundDuration(time.Since(started)))
 	return nil
-}
-
-// dialError explains the connection failures worth explaining.
-func dialError(err error, cfg config, addr string) error {
-	var keyErr *knownhosts.KeyError
-	if errors.As(err, &keyErr) {
-		if len(keyErr.Want) == 0 {
-			return fmt.Errorf("%s is not in ~/.ssh/known_hosts yet: connect once with `ssh -p %d %s@%s` and accept its key, then retry",
-				cfg.Host, cfg.Port, cfg.User, cfg.Host)
-		}
-		return fmt.Errorf("the host key of %s has CHANGED since it was added to ~/.ssh/known_hosts. "+
-			"This can mean the server was reinstalled, or that someone is intercepting the connection. "+
-			"Refusing to upload; check with the server's owner before removing the old key", cfg.Host)
-	}
-
-	if strings.Contains(err.Error(), "unable to authenticate") {
-		return fmt.Errorf("connecting to %s: the server rejected DEPLOY_USER / DEPLOY_PASSWORD", addr)
-	}
-
-	return fmt.Errorf("connecting to %s: %w", addr, err)
 }
 
 // verifyRemote compares the uploaded file's sha256 with the local one, so a
 // damaged upload never replaces the running binary. A server without
 // sha256sum is reported and the check skipped.
 func verifyRemote(client *ssh.Client, remotePath, want string) error {
-	logStep("verifying", "sha256 on the server ...")
+	deploy.LogStep("verifying", "sha256 on the server ...")
 
-	output, err := remoteOutput(client, "sha256sum "+shellQuote(remotePath))
+	output, err := deploy.Output(client, "sha256sum "+deploy.ShellQuote(remotePath))
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			logStep("verifying", "skipped: sha256sum is not available on the server")
+			deploy.LogStep("verifying", "skipped: sha256sum is not available on the server")
 			return nil
 		}
 		return fmt.Errorf("checking the upload on the server: %w", err)
@@ -201,28 +150,12 @@ func verifyRemote(client *ssh.Client, remotePath, want string) error {
 
 	if fields[0] != want {
 		// Leave the live binary alone and clean up the bad copy.
-		_ = runRemote(client, "rm -f "+shellQuote(remotePath))
+		_ = deploy.Run(client, "rm -f "+deploy.ShellQuote(remotePath))
 		return fmt.Errorf("the uploaded file is damaged (sha256 %s, want %s); the live binary was not touched", fields[0][:12], want[:12])
 	}
 
-	logStep("verified", "sha256 matches")
+	deploy.LogStep("verified", "sha256 matches")
 	return nil
-}
-
-// knownHostsCallback verifies the server against the user's known_hosts, the
-// same file the ssh command uses.
-func knownHostsCallback() (ssh.HostKeyCallback, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("finding home directory for known_hosts: %w", err)
-	}
-
-	callback, err := knownhosts.New(filepath.Join(home, ".ssh", "known_hosts"))
-	if err != nil {
-		return nil, fmt.Errorf("reading ~/.ssh/known_hosts (connect once with ssh to create it): %w", err)
-	}
-
-	return callback, nil
 }
 
 // sha256File hashes f and rewinds it for the upload.
@@ -257,13 +190,13 @@ func scpSend(client *ssh.Client, dir, name string, size int64, content io.Reader
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
 
-	if err := session.Start("scp -t " + shellQuote(dir)); err != nil {
+	if err := session.Start("scp -t " + deploy.ShellQuote(dir)); err != nil {
 		return fmt.Errorf("starting scp on the server: %w", err)
 	}
 
 	ack := func(step string) error {
 		if err := readAck(stdout); err != nil {
-			return fmt.Errorf("%s: %w%s", step, err, stderrSuffix(&stderr))
+			return fmt.Errorf("%s: %w%s", step, err, deploy.StderrSuffix(&stderr))
 		}
 		return nil
 	}
@@ -293,7 +226,7 @@ func scpSend(client *ssh.Client, dir, name string, size int64, content io.Reader
 		return err
 	}
 	if err := session.Wait(); err != nil {
-		return fmt.Errorf("scp on the server: %w%s", err, stderrSuffix(&stderr))
+		return fmt.Errorf("scp on the server: %w%s", err, deploy.StderrSuffix(&stderr))
 	}
 
 	return nil
@@ -319,38 +252,4 @@ func readAck(r io.Reader) error {
 	}
 
 	return errors.New(strings.TrimSpace(string(message)))
-}
-
-// runRemote runs one shell command on the server.
-func runRemote(client *ssh.Client, command string) error {
-	_, err := remoteOutput(client, command)
-	return err
-}
-
-// remoteOutput runs one shell command on the server and returns its output.
-func remoteOutput(client *ssh.Client, command string) (string, error) {
-	session, err := client.NewSession()
-	if err != nil {
-		return "", fmt.Errorf("opening ssh session: %w", err)
-	}
-	defer session.Close()
-
-	output, err := session.CombinedOutput(command)
-	text := strings.TrimSpace(string(output))
-	if err != nil {
-		return "", fmt.Errorf("%w: %s", err, text)
-	}
-	return text, nil
-}
-
-// shellQuote quotes s for a POSIX shell on the server.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-func stderrSuffix(stderr *bytes.Buffer) string {
-	if text := strings.TrimSpace(stderr.String()); text != "" {
-		return " (" + text + ")"
-	}
-	return ""
 }

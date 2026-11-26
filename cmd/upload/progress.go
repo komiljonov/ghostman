@@ -7,15 +7,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/komiljonov/ghostman/internal/deploy"
 )
 
-// Output is plain ASCII on purpose: a Windows console on a legacy code page
-// garbles box-drawing and check-mark characters.
-
 const (
-	// labelWidth aligns the step labels into a column.
-	labelWidth = 10
-
 	barWidth = 24
 
 	// redrawEvery throttles the in-place progress bar on a terminal.
@@ -25,11 +21,6 @@ const (
 	// a terminal (CI, a file), where redrawing in place would make a mess.
 	lineEveryPercent = 10
 )
-
-// logStep prints one aligned step line, e.g. "connected  in 0.4s, ...".
-func logStep(label, format string, args ...any) {
-	fmt.Printf("%-*s %s\n", labelWidth, label, fmt.Sprintf(format, args...))
-}
 
 // progress renders upload progress: a bar redrawn in place on a terminal, or
 // a line every few percent otherwise.
@@ -133,7 +124,7 @@ func (p *progress) line(percent int) string {
 
 	eta := "--"
 	if speed > 0 && p.done < p.total {
-		eta = roundDuration(time.Duration(float64(p.total-p.done) / speed * float64(time.Second))).String()
+		eta = deploy.RoundDuration(time.Duration(float64(p.total-p.done) / speed * float64(time.Second))).String()
 	} else if p.done >= p.total {
 		eta = "0s"
 	}
@@ -174,18 +165,5 @@ func formatBytes(n int64) string {
 		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
 	default:
 		return fmt.Sprintf("%d B", n)
-	}
-}
-
-// roundDuration keeps durations readable: milliseconds below a second, tenths
-// of a second below a minute, whole seconds above.
-func roundDuration(d time.Duration) time.Duration {
-	switch {
-	case d < time.Second:
-		return d.Round(time.Millisecond)
-	case d < time.Minute:
-		return d.Round(100 * time.Millisecond)
-	default:
-		return d.Round(time.Second)
 	}
 }

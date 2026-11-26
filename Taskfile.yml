@@ -52,6 +52,12 @@ tasks:
       # password from .env, and sshpass does not exist on Windows.
       - go run ./cmd/upload
 
+  restart:
+    desc: Restart the DEPLOY_SERVICE systemd unit on the server (default ghostman), via sudo with DEPLOY_PASSWORD unless DEPLOY_USER is root
+    cmds:
+      # Same Go-over-SSH approach as upload: no interactive password prompts.
+      - go run ./cmd/restart
+
   db:up:
     desc: Start PostgreSQL and wait until it is healthy
     cmds:
