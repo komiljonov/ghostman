@@ -38,6 +38,9 @@ The desktop app (Wails + React) lives in a separate repo; this is only the sync/
    - 7c: body writable (tagged union none|raw|form|multipart; form reuses the row validator;
      multipart rows are kind text|file, file rows carry a DISPLAY name only — file
      bytes and paths are client-local, never stored, like secret values)
+   - path_params: {key, value} rows (no enabled), same bounds as headers via
+     parseRowArray; keys are derived client-side from :segments, stored opaquely;
+     detail only, not in the list
 
 Anything beyond this is new design work: do not invent product tables or
 endpoints without discussion. Start from the backlog below.
