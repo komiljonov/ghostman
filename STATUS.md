@@ -9,6 +9,11 @@ Updated 2026-11-26: server path_params retired, `GET /projects/{id}/variable-key
 added; the app's path/dynamic-variable WIP is now committed (`f724837`). App
 lint/test results below are from the audit and were not re-run since.
 
+Updated 2026-11-26: app `36a3f70` retires path variables (one-time URL sweep into
+`{{vars}}`), translates Postman scripts on import (pm → gm), and adds "Add missing
+variables" on top of `GET /projects/{id}/variable-keys`; app lint, Go + frontend tests
+and `frontend:check` green at that commit.
+
 Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ## Implemented
@@ -45,7 +50,9 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 - Sidebar: project tree (folders → requests → examples), docked Webhooks and Proxies panels; environments in top-bar `EnvSwitcher`; History and Import in the profile menu — app: `ProjectTree.tsx`, `frontend/src/sidebarPanels.ts:13-15`, `MainScreen.tsx:328-340`
 - Global shortcuts: Ctrl/Cmd+Enter send, Ctrl+Tab / Ctrl+Shift+Tab, Ctrl/Cmd+W, Ctrl/Cmd+\ split, Ctrl/Cmd+1..9 focus group; tree Ctrl/Cmd+E rename, Ctrl/Cmd+D duplicate, Delete — app: `frontend/src/tabModel.ts:152-161`, `frontend/src/treeNav.ts`
 - Request duplicate and "restore from history", composed client-side (create + patch; no server copy endpoint) — app: `internal/api/duplicate.go`
-- Import (Postman, OpenAPI) with conversion warnings — app: `internal/importer/`
+- Import (Postman, OpenAPI) with conversion warnings — app: `internal/importer/`; Postman `:key` / OpenAPI `{p}` path segments become `{{variables}}` (a url.variable `{{ref}}` value is kept silently; a literal value → `{{key}}` + warning); Postman pre-request / test scripts imported into pre/post scripts, translated pm → gm where equivalent, the rest kept as `// [postman]` comment lines (whole script commented when it would not stay valid) — app: `internal/importer/pmscript.go`, `mapper.go` (`pathVariables`, `mapScripts`)
+- "Add missing variables" (environment tab header): `variable-keys` minus the env's keys (secret counts as present, case-insensitive), checkbox list, created as regular variables with "" — app: `missing_variables.go`, `internal/envs/missing.go`, `MissingVariablesModal.tsx`
+- Path variables retired: `:id` is plain text; a one-time per-project sweep (inside the workspace load) PATCHes `:key` URL segments to the history-cached value or `{{key}}`; `{{vars}}` are inserted as typed (no path-escaping) — app: `path_sweep.go`, `internal/pathsweep/`
 - Webhook captures polled every 2 s per open webhook tab, paused when unfocused — app: `frontend/src/webhookPoll.ts`
 
 ### Engine (app, Go)
@@ -62,7 +69,7 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ### Local-only (app SQLite, `internal/store/migrations/`)
 
-- `history`: full send log (template + resolved request, response, timings, auth, console, proxy) with entry/size caps — app: 00001/00006/00008–00010/00012, `internal/store/history.go`
+- `history`: full send log (template + resolved request, response, timings, auth, console, proxy) with entry/size caps — app: 00001/00006/00008–00010/00012, `internal/store/history.go`; `req_path_params_json` (00014) is no longer written, read once by the path-variable sweep
 - `settings` key/value: session token, server URL, theme, active env, follow-redirects default, codegen prefs, UI layout — app: 00002
 - `secret_values`: secret variable values (never synced) — app: 00003
 - `request_files`: multipart file paths (never synced) — app: 00011
@@ -82,9 +89,9 @@ Evidence paths: `server:` = this repo, `app:` = `../ghostman-app`.
 
 ## Partial / flagged
 
-- **App/server mismatch:** the app (`f724837`) substitutes `:id` path variables from synced `path_params` rows and still PATCHes `path_params` (`internal/api/requests.go:42,68`, `request_model.go:115`); the server no longer accepts it, so those saves 400 until the app migrates path values into urls. Committed in `b24d112` (`internal/engine/pathvars.go`, `internal/store/migrations/00014_history_path_params.sql`).
+- ~~App/server mismatch on `path_params`~~ — resolved in app `36a3f70`: the app no longer sends `path_params`; URLs were migrated by the sweep.
 - Dynamic vars (committed in `b24d112`) `$uuid $now $now±N $timestamp $isoTimestamp $date $randomInt $randomHex` — `internal/engine/dynamic.go`; UI hint/completion not re-checked since the audit.
-- At audit time (before `f724837`) app `task lint` failed, all in then-uncommitted files: `internal/envs/envs_test.go:299,302,306` (errorlint: compare with `errors.Is`), `internal/engine/dynamic.go:82` (gocritic unlambda); one gofmt report was already gone on re-check.
+- (Historical, fixed since) at audit time (before `f724837`) app `task lint` failed, all in then-uncommitted files: `internal/envs/envs_test.go:299,302,306` (errorlint: compare with `errors.Is`), `internal/engine/dynamic.go:82` (gocritic unlambda); one gofmt report was already gone on re-check.
 - App `TestMemoryBudget` (`internal/scripting`) failed in the full `task test` run but passes alone — timing/load-sensitive.
 - App skips: `internal/engine/multipart_test.go:196` `t.Skip("large upload")` under `-short`; `internal/codegen/roundtrip_test.go:197` `t.Skipf("%s not available")` when curl/node/python/go is missing.
 - App "for now" notes: `internal/codegen/codegen.go:41` "Options are the per-target choices (curl only for now)"; `internal/importer/openapi.go:391` "Ghostman has no cookies yet"; OAuth etc. imported as Inherit — `internal/importer/mapper.go:515`, `openapi.go:914`.
