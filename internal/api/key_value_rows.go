@@ -37,41 +37,22 @@ var keyValueRowFields = []string{"key", "value", "enabled"}
 // order given. Errors name the field and the row index, for example
 // "headers[3].key is required".
 func parseKeyValueRows(raw json.RawMessage, field string) (json.RawMessage, error) {
-	return parseRowArray(raw, field, "{key, value, enabled}", parseKeyValueRow)
-}
-
-// parsePathParamRows validates a path_params array of {key, value} rows, with
-// the same bounds, null handling and error paths as parseKeyValueRows. The
-// keys come from :segments in the url, but only the client derives them; the
-// server stores the rows as given.
-func parsePathParamRows(raw json.RawMessage, field string) (json.RawMessage, error) {
-	return parseRowArray(raw, field, "{key, value}", parsePathParamRow)
-}
-
-// parseRowArray is the array half of the row validators: absent or null is
-// nil, otherwise at most maxKeyValueRows rows, each checked by parseRow under
-// "field[i]" and re-encoded in order.
-func parseRowArray[T any](
-	raw json.RawMessage,
-	field, shape string,
-	parseRow func(raw json.RawMessage, path string) (T, error),
-) (json.RawMessage, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
 
 	var items []json.RawMessage
 	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("%s must be an array of %s rows", field, shape)
+		return nil, fmt.Errorf("%s must be an array of {key, value, enabled} rows", field)
 	}
 
 	if len(items) > maxKeyValueRows {
 		return nil, fmt.Errorf("%s must have at most %d rows, got %d", field, maxKeyValueRows, len(items))
 	}
 
-	rows := make([]T, 0, len(items))
+	rows := make([]keyValueRow, 0, len(items))
 	for i, item := range items {
-		row, err := parseRow(item, fmt.Sprintf("%s[%d]", field, i))
+		row, err := parseKeyValueRow(item, fmt.Sprintf("%s[%d]", field, i))
 		if err != nil {
 			return nil, err
 		}
@@ -86,40 +67,37 @@ func parseRowArray[T any](
 	return encoded, nil
 }
 
-// pathParamRow is one validated path parameter row.
-type pathParamRow struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-// pathParamRowFields lists the only fields a path parameter row may carry.
-var pathParamRowFields = []string{"key", "value"}
-
-// parsePathParamRow validates one {key, value} row, reporting errors under
-// path.
-func parsePathParamRow(raw json.RawMessage, path string) (pathParamRow, error) {
-	fields, err := rowFields(raw, path, pathParamRowFields, "key and value")
-	if err != nil {
-		return pathParamRow{}, err
-	}
-
-	var row pathParamRow
-	if row.Key, row.Value, err = rowKeyValue(fields, path); err != nil {
-		return pathParamRow{}, err
-	}
-
-	return row, nil
-}
-
 // parseKeyValueRow validates one row, reporting errors under path.
 func parseKeyValueRow(raw json.RawMessage, path string) (keyValueRow, error) {
-	fields, err := rowFields(raw, path, keyValueRowFields, "key, value and enabled")
-	if err != nil {
-		return keyValueRow{}, err
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+		return keyValueRow{}, fmt.Errorf("%s must be an object with key, value and enabled", path)
+	}
+
+	// Sorted, so the same bad row always yields the same message.
+	names := make([]string, 0, len(fields))
+	for name := range fields {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if !slices.Contains(keyValueRowFields, name) {
+			return keyValueRow{}, fmt.Errorf("%s.%s is not a known field; a row has only key, value and enabled", path, name)
+		}
 	}
 
 	var row keyValueRow
-	if row.Key, row.Value, err = rowKeyValue(fields, path); err != nil {
+	var err error
+
+	if row.Key, err = rowString(fields, path, "key", maxKeyValueKeyLength); err != nil {
+		return keyValueRow{}, err
+	}
+	// Checked trimmed, but stored as given: keys are opaque.
+	if strings.TrimSpace(row.Key) == "" {
+		return keyValueRow{}, fmt.Errorf("%s.key is required", path)
+	}
+
+	if row.Value, err = rowString(fields, path, "value", maxKeyValueValueLength); err != nil {
 		return keyValueRow{}, err
 	}
 
@@ -133,46 +111,6 @@ func parseKeyValueRow(raw json.RawMessage, path string) (keyValueRow, error) {
 	}
 
 	return row, nil
-}
-
-// rowFields decodes a row object and refuses any field not in allowed;
-// describe names the allowed fields in messages.
-func rowFields(raw json.RawMessage, path string, allowed []string, describe string) (map[string]json.RawMessage, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return nil, fmt.Errorf("%s must be an object with %s", path, describe)
-	}
-
-	// Sorted, so the same bad row always yields the same message.
-	names := make([]string, 0, len(fields))
-	for name := range fields {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		if !slices.Contains(allowed, name) {
-			return nil, fmt.Errorf("%s.%s is not a known field; a row has only %s", path, name, describe)
-		}
-	}
-
-	return fields, nil
-}
-
-// rowKeyValue reads a row's required key (non-blank) and value (may be empty).
-func rowKeyValue(fields map[string]json.RawMessage, path string) (key, value string, err error) {
-	if key, err = rowString(fields, path, "key", maxKeyValueKeyLength); err != nil {
-		return "", "", err
-	}
-	// Checked trimmed, but stored as given: keys are opaque.
-	if strings.TrimSpace(key) == "" {
-		return "", "", fmt.Errorf("%s.key is required", path)
-	}
-
-	if value, err = rowString(fields, path, "value", maxKeyValueValueLength); err != nil {
-		return "", "", err
-	}
-
-	return key, value, nil
 }
 
 // rowString reads a required string field of a row, bounded in characters.

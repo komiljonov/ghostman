@@ -49,7 +49,7 @@ VALUES (
           AND siblings.folder_id IS NOT DISTINCT FROM $2
     )
 )
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix, path_params
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type CreateRequestParams struct {
@@ -106,7 +106,6 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.AuthJwtAddTo,
 		&i.AuthJwtName,
 		&i.AuthJwtPrefix,
-		&i.PathParams,
 	)
 	return i, err
 }
@@ -122,7 +121,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id uuid.UUID) error {
 }
 
 const getRequestByID = `-- name: GetRequestByID :one
-SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix, path_params
+SELECT id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 FROM requests
 WHERE id = $1
 `
@@ -163,7 +162,6 @@ func (q *Queries) GetRequestByID(ctx context.Context, id uuid.UUID) (Request, er
 		&i.AuthJwtAddTo,
 		&i.AuthJwtName,
 		&i.AuthJwtPrefix,
-		&i.PathParams,
 	)
 	return i, err
 }
@@ -217,8 +215,8 @@ type ListRequestsByProjectRow struct {
 	ExampleCount        int64      `json:"example_count"`
 }
 
-// Every request of the project in one flat list, without headers, query or
-// path parameters or body; the client places them in the folder tree.
+// Every request of the project in one flat list, without headers, query
+// parameters or body; the client places them in the folder tree.
 // example_count is one index lookup per request on
 // request_examples_request_id_idx, so the client can badge without fetching.
 func (q *Queries) ListRequestsByProject(ctx context.Context, projectID uuid.UUID) ([]ListRequestsByProjectRow, error) {
@@ -312,31 +310,30 @@ SET name = COALESCE($1, name),
     url = COALESCE($3, url),
     headers = COALESCE($4::jsonb, headers),
     query_params = COALESCE($5::jsonb, query_params),
-    path_params = COALESCE($6::jsonb, path_params),
-    body = COALESCE($7::jsonb, body),
-    follow_redirects = COALESCE($8, follow_redirects),
-    auth_type = COALESCE($9, auth_type),
-    auth_bearer_token = COALESCE($10, auth_bearer_token),
-    auth_basic_username = COALESCE($11, auth_basic_username),
-    auth_basic_password = COALESCE($12, auth_basic_password),
-    auth_api_key_name = COALESCE($13, auth_api_key_name),
-    auth_api_key_value = COALESCE($14, auth_api_key_value),
-    auth_api_key_in = COALESCE($15, auth_api_key_in),
-    auth_jwt_algorithm = COALESCE($16, auth_jwt_algorithm),
-    auth_jwt_secret = COALESCE($17, auth_jwt_secret),
-    auth_jwt_secret_base64 = COALESCE($18::boolean, auth_jwt_secret_base64),
-    auth_jwt_payload = COALESCE($19, auth_jwt_payload),
-    auth_jwt_add_to = COALESCE($20, auth_jwt_add_to),
-    auth_jwt_name = COALESCE($21, auth_jwt_name),
-    auth_jwt_prefix = COALESCE($22, auth_jwt_prefix),
-    response_filter = COALESCE($23, response_filter),
-    pre_script = COALESCE($24, pre_script),
-    post_script = COALESCE($25, post_script),
-    proxy_mode = COALESCE($26, proxy_mode),
-    proxy_id = CASE WHEN $27::boolean THEN $28::uuid ELSE proxy_id END,
+    body = COALESCE($6::jsonb, body),
+    follow_redirects = COALESCE($7, follow_redirects),
+    auth_type = COALESCE($8, auth_type),
+    auth_bearer_token = COALESCE($9, auth_bearer_token),
+    auth_basic_username = COALESCE($10, auth_basic_username),
+    auth_basic_password = COALESCE($11, auth_basic_password),
+    auth_api_key_name = COALESCE($12, auth_api_key_name),
+    auth_api_key_value = COALESCE($13, auth_api_key_value),
+    auth_api_key_in = COALESCE($14, auth_api_key_in),
+    auth_jwt_algorithm = COALESCE($15, auth_jwt_algorithm),
+    auth_jwt_secret = COALESCE($16, auth_jwt_secret),
+    auth_jwt_secret_base64 = COALESCE($17::boolean, auth_jwt_secret_base64),
+    auth_jwt_payload = COALESCE($18, auth_jwt_payload),
+    auth_jwt_add_to = COALESCE($19, auth_jwt_add_to),
+    auth_jwt_name = COALESCE($20, auth_jwt_name),
+    auth_jwt_prefix = COALESCE($21, auth_jwt_prefix),
+    response_filter = COALESCE($22, response_filter),
+    pre_script = COALESCE($23, pre_script),
+    post_script = COALESCE($24, post_script),
+    proxy_mode = COALESCE($25, proxy_mode),
+    proxy_id = CASE WHEN $26::boolean THEN $27::uuid ELSE proxy_id END,
     updated_at = now()
-WHERE id = $29
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix, path_params
+WHERE id = $28
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type UpdateRequestParams struct {
@@ -345,7 +342,6 @@ type UpdateRequestParams struct {
 	Url                 *string         `json:"url"`
 	Headers             json.RawMessage `json:"headers"`
 	QueryParams         json.RawMessage `json:"query_params"`
-	PathParams          json.RawMessage `json:"path_params"`
 	Body                json.RawMessage `json:"body"`
 	FollowRedirects     *string         `json:"follow_redirects"`
 	AuthType            *string         `json:"auth_type"`
@@ -373,8 +369,8 @@ type UpdateRequestParams struct {
 
 // A partial update merged in SQL, so it is atomic against concurrent edits:
 // NULL keeps the current value. An empty url is a real value, not "keep".
-// headers, query_params, path_params and body each replace the whole value;
-// the caller has already validated and normalised them.
+// headers, query_params and body each replace the whole value; the caller has
+// already validated and normalised them.
 func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (Request, error) {
 	row := q.db.QueryRow(ctx, updateRequest,
 		arg.Name,
@@ -382,7 +378,6 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.Url,
 		arg.Headers,
 		arg.QueryParams,
-		arg.PathParams,
 		arg.Body,
 		arg.FollowRedirects,
 		arg.AuthType,
@@ -441,7 +436,6 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.AuthJwtAddTo,
 		&i.AuthJwtName,
 		&i.AuthJwtPrefix,
-		&i.PathParams,
 	)
 	return i, err
 }
@@ -461,7 +455,7 @@ SET folder_id = $1,
     ),
     updated_at = now()
 WHERE requests.id = $3
-RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix, path_params
+RETURNING id, project_id, folder_id, name, method, url, headers, query_params, body, sort_order, created_at, updated_at, follow_redirects, auth_type, auth_bearer_token, auth_basic_username, auth_basic_password, auth_api_key_name, auth_api_key_value, auth_api_key_in, response_filter, pre_script, post_script, proxy_mode, proxy_id, auth_jwt_algorithm, auth_jwt_secret, auth_jwt_secret_base64, auth_jwt_payload, auth_jwt_add_to, auth_jwt_name, auth_jwt_prefix
 `
 
 type UpdateRequestFolderParams struct {
@@ -509,7 +503,6 @@ func (q *Queries) UpdateRequestFolder(ctx context.Context, arg UpdateRequestFold
 		&i.AuthJwtAddTo,
 		&i.AuthJwtName,
 		&i.AuthJwtPrefix,
-		&i.PathParams,
 	)
 	return i, err
 }

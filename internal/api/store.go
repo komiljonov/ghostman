@@ -22,6 +22,7 @@ type Store interface {
 	WebhookStore
 	ProxyStore
 	ExampleStore
+	VariableKeyStore
 }
 
 // AuthStore covers registration, login and session lookup.
@@ -165,6 +166,12 @@ type ExampleStore interface {
 	UpdateRequestExample(ctx context.Context, arg db.UpdateRequestExampleParams) (db.RequestExample, error)
 	DeleteRequestExample(ctx context.Context, id uuid.UUID) error
 	ReorderRequestExamples(ctx context.Context, requestID uuid.UUID, exampleIDs []uuid.UUID, check func([]uuid.UUID) error) error
+}
+
+// VariableKeyStore reads every text in a project that may reference a
+// variable, in one query.
+type VariableKeyStore interface {
+	ListProjectVariableSources(ctx context.Context, projectID uuid.UUID) ([]db.ListProjectVariableSourcesRow, error)
 }
 
 // The real store must satisfy Store.

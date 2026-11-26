@@ -330,3 +330,7 @@ func (unimplementedTeamStore) DeleteRequestExample(_ context.Context, _ uuid.UUI
 func (unimplementedTeamStore) ReorderRequestExamples(_ context.Context, _ uuid.UUID, _ []uuid.UUID, _ func([]uuid.UUID) error) error {
 	return errStubbed
 }
+
+func (unimplementedTeamStore) ListProjectVariableSources(_ context.Context, _ uuid.UUID) ([]db.ListProjectVariableSourcesRow, error) {
+	return nil, errStubbed
+}
